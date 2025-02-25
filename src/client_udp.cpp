@@ -70,7 +70,7 @@ void ClientUDP::ImageCallback(const CompressedImage::SharedPtr msg)
         bool success = socket.sendTo(AsConst(packet.data), *serverAddress);
         if (!success)
             RCLCPP_ERROR(get_logger(), "Failed to send message to %s:%d", serverAddress->getHost().c_str(), serverAddress->getPort());
-        rclcpp::sleep_for(std::chrono::microseconds(200));
+        // rclcpp::sleep_for(std::chrono::microseconds(200));
     }
     imageID++;
 }

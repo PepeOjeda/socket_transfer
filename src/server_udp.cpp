@@ -1,4 +1,5 @@
 #include "Serialization.hpp"
+#include "utils.hpp"
 #include <MinimalSocket/udp/UdpSocket.h>
 #include <fmt/format.h>
 #include <rclcpp/rclcpp.hpp>
@@ -56,7 +57,7 @@ void ServerUDP::Run()
 
     while (rclcpp::ok())
     {
-        auto start_t = std::clock();
+        Utils::Time::Stopwatch stopwatch;
         auto receivedMessage = socket.receive(bufferView);
         if (!receivedMessage)
         {
@@ -83,7 +84,7 @@ void ServerUDP::Run()
 
         currentMessage->packets.push_back(packet);
 
-        RCLCPP_INFO(get_logger(), "Ellapsed %fs", ((double)(std::clock() - start_t) / CLOCKS_PER_SEC));
+        // RCLCPP_INFO(get_logger(), "Ellapsed %fs", stopwatch.ellapsed());
 
         if (currentMessage->isComplete())
         {

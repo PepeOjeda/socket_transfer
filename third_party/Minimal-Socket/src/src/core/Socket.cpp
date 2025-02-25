@@ -45,7 +45,7 @@ namespace MinimalSocket
 
     void Socket::setBufferSize(size_t size)
     {
-        if (setsockopt(socket_id_wrapper->accessId(), SOL_SOCKET, SO_RCVBUF, &size, sizeof(size)) == -1)
+        if (setsockopt(getSocketDescriptor(), SOL_SOCKET, SO_RCVBUF, &size, sizeof(size)) == -1)
         {
             fprintf(stderr, "Error setting socket size");
         }
