@@ -1,5 +1,7 @@
 #include "MinimalSocket/udp/UdpSocket.h"
 #include "Serialization.hpp"
+#include "utils.hpp"
+#include <fmt/format.h>
 #include <rclcpp/rclcpp.hpp>
 
 using sensor_msgs::msg::CompressedImage;
@@ -38,9 +40,9 @@ ClientUDP::ClientUDP()
 
     std::string serverIP = declare_parameter("serverIP", "127.0.0.1");
     MinimalSocket::Port serverPort = declare_parameter("serverPort", 15768);
+    RCLCPP_INFO(get_logger(), "Sending images to %s:%d", serverIP.c_str(), serverPort);
     serverAddress.emplace(serverIP, serverPort);
     socket.open();
-    RCLCPP_INFO(get_logger(), "Sending images to %s:%d", serverIP.c_str(), serverPort);
 
     buffer.resize(bufferSize);
 }
@@ -48,20 +50,25 @@ ClientUDP::ClientUDP()
 void ClientUDP::ImageCallback(const CompressedImage::SharedPtr msg)
 {
     // RCLCPP_INFO(get_logger(), "Got image!");
+
     MinimalSocket::BufferView bufferView;
     bufferView.buffer = buffer.data();
     bufferView.buffer_size = buffer.size();
-    std::vector<MinimalSocket::BufferViewConst> packetBufViews = Serialize(*msg, imageID, bufferView);
+    std::vector<Packet> packets = Serialize(*msg, imageID, bufferView);
 
-    for (auto view : packetBufViews)
+    for (auto packet : packets)
     {
-        // RCLCPP_INFO(get_logger(), "Sending packet");
-        bool success = socket.sendTo(view, serverAddress.value());
+        if (!rclcpp::ok())
+            exit(-1);
+        // RCLCPP_INFO(get_logger(), "Sending packet Image %d: %d/%d, %ld bytes",
+        //             packet.header.imageID,
+        //             packet.header.packetID,
+        //             packet.header.numPackets - 1,
+        //             packet.data.buffer_size);
+        bool success = socket.sendTo(AsConst(packet.data), *serverAddress);
         if (!success)
             RCLCPP_ERROR(get_logger(), "Failed to send message to %s:%d", serverAddress->getHost().c_str(), serverAddress->getPort());
         rclcpp::sleep_for(std::chrono::microseconds(1000));
     }
-
     imageID++;
-    // rclcpp::sleep_for(std::chrono::seconds(2));
 }

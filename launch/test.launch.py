@@ -22,6 +22,7 @@ def launch_setup(context, *args, **kwargs):
         package="image_transfer",
         name="client",
         executable="client_udp",
+        prefix="xterm -hold -e",
         parameters=[
             {"topic": "/rgbd/color/compressed"},
             {"serverIP": "127.0.0.1"},
@@ -33,14 +34,15 @@ def launch_setup(context, *args, **kwargs):
         package="image_transfer",
         name="server",
         executable="server_udp",
+        prefix="xterm -hold -e",
         parameters=[
             {"port": 15768},
-            {"topic": "/udp_image"},
+            {"topic": "/received_image"},
         ],
     )
     return [
-        client,
         server,
+        client,
     ]
 
 

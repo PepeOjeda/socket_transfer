@@ -26,13 +26,21 @@ struct Message
             return false;
         sort();
 
+        uint8_t imageID = packets.at(0).header.imageID;
         // check if we have duplicates or something, i don't know
         for (int i = 0; i < packets.size(); i++)
-            if (packets[i].header.packetID != i)
+        {
+            if (packets[i].header.imageID != imageID)
             {
-                printError();
+                printImageIDError();
                 return false;
             }
+            if (packets[i].header.packetID != i)
+            {
+                printPacketIDError();
+                return false;
+            }
+        }
 
         return true;
     }
@@ -55,10 +63,17 @@ struct Message
                   });
     }
 
-    void printError()
+    void printPacketIDError()
     {
         fprintf(stderr, "Packet IDs in message %d are weird! Look:\n", packets[0].header.imageID);
         for (int j = 0; j < packets.size(); j++)
             fprintf(stderr, "\t %d\n", packets[j].header.packetID);
+    }
+
+    void printImageIDError()
+    {
+        fprintf(stderr, "Image IDs are not all the same! Look:\n");
+        for (int j = 0; j < packets.size(); j++)
+            fprintf(stderr, "\t %d\n", packets[j].header.imageID);
     }
 };

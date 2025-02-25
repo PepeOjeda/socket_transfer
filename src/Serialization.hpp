@@ -1,28 +1,54 @@
 #include "MinimalSocket/core/Definitions.h"
 #include "packet.hpp"
-#include <istream>
+#include <cassert>
+#include <cmath>
 #include <sensor_msgs/msg/compressed_image.hpp>
+#include <string.h>
 
 inline constexpr size_t bufferSize = 10e6;
 inline constexpr size_t packetSize = 1500;
 
 // Serialization
 
-template <typename T>
-inline void Write(T* address, std::ostream& stream)
+class BufferWriter
 {
-    stream.write((char*)address, sizeof(T));
-}
+public:
+    BufferWriter() = delete;
+    BufferWriter(char* _start, size_t _size)
+    {
+        start = _start;
+        current = start;
+        end = start + _size;
+    }
 
-template <typename T>
-inline void Write(T* address, std::ostream& stream, size_t size)
-{
-    stream.write((char*)address, size);
-}
+    template <typename T>
+    void Write(T* address)
+    {
+        memcpy(current, address, sizeof(T));
+        current += sizeof(T);
+    }
 
-inline std::vector<MinimalSocket::BufferViewConst> Serialize(const sensor_msgs::msg::CompressedImage& msg,
-                                                             uint8_t imageID,
-                                                             MinimalSocket::BufferView mainBufferView)
+    template <typename T>
+    void Write(T* address, size_t size)
+    {
+        memcpy(current, address, size);
+        current += size;
+    }
+
+    size_t currentOffset()
+    {
+        return current - start;
+    }
+
+private:
+    char* start;
+    char* current;
+    char* end;
+};
+
+inline std::vector<Packet> Serialize(const sensor_msgs::msg::CompressedImage& msg,
+                                     uint8_t imageID,
+                                     MinimalSocket::BufferView mainBufferView)
 {
     size_t bytesToWrite =
         sizeof(msg.header.stamp)       //
@@ -33,89 +59,112 @@ inline std::vector<MinimalSocket::BufferViewConst> Serialize(const sensor_msgs::
         + sizeof(size_t)               // length of image data
         + msg.data.size();
 
-    uint16_t numPackets = bytesToWrite / (packetSize - sizeof(PacketHeader));
-
-    // create the stream to write into buffer
-    std::stringstream stream;
-    stream.rdbuf()->pubsetbuf(mainBufferView.buffer, mainBufferView.buffer_size);
+    uint16_t numPackets = std::ceil(bytesToWrite / static_cast<double>(packetSize - sizeof(PacketHeader)));
 
     const uint8_t* dataCurrentPtr = msg.data.data();
     const uint8_t* dataEndPtr = msg.data.data() + msg.data.size();
 
+    BufferWriter writer(mainBufferView.buffer, mainBufferView.buffer_size);
+
     // list we will return
-    std::vector<MinimalSocket::BufferViewConst> packetViews;
+    std::vector<Packet> packetViews;
 
     for (uint16_t packetID = 0; packetID < numPackets; packetID++)
     {
-        char* startPtr = mainBufferView.buffer + stream.tellp();
+        if (packetID == numPackets - 1)
+            printf("final package");
+        char* headerStartPtr = mainBufferView.buffer + writer.currentOffset();
 
         // write packet
         //-----------------------------------
         PacketHeader packetHeader{.imageID = imageID, .packetID = packetID, .numPackets = numPackets};
-        Write(&packetHeader, stream);
+        writer.Write(&packetHeader);
 
         // first packet includes the msg header
         if (packetID == 0)
         {
             // Header
-            Write(&msg.header.stamp.sec, stream);
-            Write(&msg.header.stamp.nanosec, stream);
+            writer.Write(&msg.header.stamp.sec);
+            writer.Write(&msg.header.stamp.nanosec);
 
             uint16_t frameIDSize = msg.header.frame_id.length();
-            Write(&frameIDSize, stream);
-            Write(msg.header.frame_id.data(), stream, frameIDSize);
+            writer.Write(&frameIDSize);
+            writer.Write(msg.header.frame_id.data(), frameIDSize);
 
             // format
             uint16_t formatSize = msg.format.length();
-            Write(&formatSize, stream);
-            Write(msg.format.data(), stream, formatSize);
+            writer.Write(&formatSize);
+            writer.Write(msg.format.data(), formatSize);
 
             // data
             size_t dataSize = msg.data.size();
-            Write(&dataSize, stream);
+            writer.Write(&dataSize);
         }
 
         // write as much of the image data as will fit in the current package, and advance the data pointer accordingly
-        char* currentBufferPtr = mainBufferView.buffer + stream.tellp();
+        char* currentBufferPtr = mainBufferView.buffer + writer.currentOffset();
         size_t remainingBytesMsgData = dataEndPtr - dataCurrentPtr;
-        size_t remainingBytesInPacket = packetSize - (currentBufferPtr - startPtr);
+        size_t remainingBytesInPacket = packetSize - (currentBufferPtr - headerStartPtr);
 
         size_t writeSize = std::min(remainingBytesMsgData, remainingBytesInPacket);
-        Write(dataCurrentPtr, stream, writeSize);
+        writer.Write(dataCurrentPtr, writeSize);
         dataCurrentPtr += writeSize;
 
         // add the bufferview for this packet to the vector
         //-----------------------------------
-        currentBufferPtr = mainBufferView.buffer + stream.tellp();
-        MinimalSocket::BufferViewConst packetBufView{startPtr, (size_t)(currentBufferPtr - startPtr)};
-        packetViews.push_back(packetBufView);
+        currentBufferPtr = mainBufferView.buffer + writer.currentOffset();
+        MinimalSocket::BufferView packetBufView{headerStartPtr, (size_t)(currentBufferPtr - headerStartPtr)};
+        packetViews.push_back(Packet{packetHeader, packetBufView});
     }
     return packetViews;
 }
 
 // Deserialization
 
-template <typename T>
-inline void Read(T* address, std::istream& stream)
+class BufferReader
 {
-    stream.read((char*)address, sizeof(T));
-}
+public:
+    BufferReader() = delete;
+    BufferReader(char* _start, size_t _size)
+    {
+        start = _start;
+        current = start;
+        end = start + _size;
+    }
 
-template <typename T>
-inline void Read(T* address, std::istream& stream, size_t size)
-{
-    stream.read((char*)address, size);
-}
+    template <typename T>
+    void Read(T* address)
+    {
+        memcpy(address, current, sizeof(T));
+        current += sizeof(T);
+    }
+
+    template <typename T>
+    void Read(T* address, size_t size)
+    {
+        memcpy(address, current, size);
+        current += size;
+    }
+
+    size_t currentOffset()
+    {
+        return current - start;
+    }
+
+private:
+    char* start;
+    char* current;
+    char* end;
+};
 
 inline Packet ReadPacketAndAdvance(MinimalSocket::BufferView& bufferView, size_t dataSize)
 {
-    std::stringstream stream;
-    stream.rdbuf()->pubsetbuf(bufferView.buffer, bufferView.buffer_size);
+    BufferReader reader(bufferView.buffer, bufferView.buffer_size);
 
     Packet packet;
-    Read(&packet.header, stream);
+    reader.Read(&packet.header);
     packet.data.buffer = bufferView.buffer + sizeof(PacketHeader);
-    packet.data.buffer_size = dataSize;
+    packet.data.buffer_size = dataSize - sizeof(PacketHeader);
 
     // update bufferview
     bufferView.buffer += dataSize;
@@ -130,40 +179,51 @@ inline void Deserialize(sensor_msgs::msg::CompressedImage& msg, const std::vecto
 
     // parse first packet, which contains the message header
     {
-        std::stringstream stream;
-        stream.rdbuf()->pubsetbuf(packets[0].data.buffer, packets[0].data.buffer_size);
+        BufferReader reader(packets[0].data.buffer, packets[0].data.buffer_size);
 
         // Read Image message header from first packet
         //  Header
-        Read(&msg.header.stamp.sec, stream);
-        Read(&msg.header.stamp.nanosec, stream);
+        reader.Read(&msg.header.stamp.sec);
+        reader.Read(&msg.header.stamp.nanosec);
 
-        uint16_t frameIDSizeize;
-        Read(&frameIDSizeize, stream);
-        msg.header.frame_id.resize(frameIDSizeize);
-        Read(msg.header.frame_id.data(), stream, frameIDSizeize);
+        uint16_t frameIDSize;
+        reader.Read(&frameIDSize);
+        msg.header.frame_id.resize(frameIDSize);
+        reader.Read(msg.header.frame_id.data(), frameIDSize);
 
         // format
         uint16_t formatSize;
-        Read(&formatSize, stream);
+        reader.Read(&formatSize);
         msg.format.resize(formatSize);
-        Read(msg.format.data(), stream, formatSize);
+        reader.Read(msg.format.data(), formatSize);
 
         // data
         size_t dataSize;
-        Read(&dataSize, stream);
+        reader.Read(&dataSize);
         msg.data.resize(dataSize);
         currentDataPtr = msg.data.data();
 
-        Read(msg.data.data(), stream, packets[0].data.buffer_size - stream.tellg());
+        size_t dataThisPacket = packets[0].data.buffer_size - reader.currentOffset();
+        reader.Read(msg.data.data(), dataThisPacket);
+        currentDataPtr += dataThisPacket;
     }
 
     for (int i = 1; i < packets.size(); i++)
     {
         const Packet& packet = packets[i];
-        std::stringstream stream;
-        stream.rdbuf()->pubsetbuf(packet.data.buffer, packet.data.buffer_size);
-
-        Read(currentDataPtr, stream, packet.data.buffer_size);
+        BufferReader reader(packet.data.buffer, packet.data.buffer_size);
+        reader.Read(currentDataPtr, packet.data.buffer_size);
+        currentDataPtr += packet.data.buffer_size;
     }
+}
+
+inline void RelocatePacket(Packet& packet, MinimalSocket::BufferView& bufferView)
+{
+    BufferWriter writer(bufferView.buffer, bufferView.buffer_size);
+    writer.Write(packet.data.buffer, packet.data.buffer_size);
+
+    packet.data.buffer = bufferView.buffer;
+    
+    bufferView.buffer += writer.currentOffset();
+    bufferView.buffer_size -= writer.currentOffset();
 }

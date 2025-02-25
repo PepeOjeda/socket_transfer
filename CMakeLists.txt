@@ -15,7 +15,7 @@ set(AMENT_DEPS
 foreach(Dependency IN ITEMS ${AMENT_DEPS})
   find_package(${Dependency} REQUIRED)
 endforeach()
-
+find_package(fmt REQUIRED)
 
 # Sockets library
 add_subdirectory(third_party/Minimal-Socket)
@@ -23,17 +23,17 @@ add_subdirectory(third_party/Minimal-Socket)
 # Client node
 add_executable(client_udp src/client_udp.cpp)
 ament_target_dependencies(client_udp ${AMENT_DEPS})
-target_link_libraries(client_udp MinimalSocket)
+target_link_libraries(client_udp MinimalSocket fmt)
 
 # server node
 add_executable(server_udp src/server_udp.cpp)
 ament_target_dependencies(server_udp ${AMENT_DEPS})
-target_link_libraries(server_udp MinimalSocket)
+target_link_libraries(server_udp MinimalSocket fmt)
 
 
 # Install
 install(
-  TARGETS client_udp server_udp
+  TARGETS client_udp server_udp 
   DESTINATION lib/${PROJECT_NAME}
 )
 
