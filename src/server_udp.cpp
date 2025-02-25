@@ -94,7 +94,7 @@ void ServerUDP::Run()
 
             currentMessage = std::nullopt;
             bufferView = {.buffer = buffer.data(), .buffer_size = bufferSize};
-            RCLCPP_INFO(get_logger(), "Message published!");
+            // RCLCPP_INFO(get_logger(), "Message published!");
         }
     }
 }
