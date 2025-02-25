@@ -7,6 +7,10 @@
 using sensor_msgs::msg::CompressedImage;
 
 // Gets compressed images from UDP socket, deserializes them, and publishes them on a ros2 topic
+
+// TODO currently this can only have 1 frame being reconstructed at a time
+//  when a packet from the next image is received, the previous frame is discarded
+//  I think this is generally good enough, but it might be interesting to do something more sophisticated
 class ServerUDP : public rclcpp::Node
 {
 public:
