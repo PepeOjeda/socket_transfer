@@ -3,6 +3,7 @@
 #include <MinimalSocket/udp/UdpSocket.h>
 #include <fmt/format.h>
 #include <rclcpp/rclcpp.hpp>
+#include <fstream>
 
 using sensor_msgs::msg::CompressedImage;
 
@@ -16,6 +17,9 @@ class ServerUDP : public rclcpp::Node
 public:
     ServerUDP();
     void Run();
+
+private:
+    void printImage(CompressedImage& msg); // for debugging
 
 private:
     MinimalSocket::Port port;
@@ -95,10 +99,18 @@ void ServerUDP::Run()
             CompressedImage msg;
             Deserialize(msg, currentMessage->packets);
             publisher->publish(msg);
+            // printImage(msg);
 
             currentMessage = std::nullopt;
             bufferView = {.buffer = buffer.data(), .buffer_size = bufferSize};
-            // RCLCPP_INFO(get_logger(), "Message published!");
+            RCLCPP_INFO(get_logger(), "Message published!");
         }
     }
+}
+
+void ServerUDP::printImage(CompressedImage& msg)
+{
+    std::ofstream file(fmt::format("mostRecent.png"));
+    file.write((char*)msg.data.data(), msg.data.size());
+    file.close();
 }
