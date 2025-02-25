@@ -35,6 +35,7 @@ ServerUDP::ServerUDP()
 {
     port = declare_parameter<MinimalSocket::Port>("port", 15768);
     socket = {port, MinimalSocket::AddressFamily::IP_V4};
+    socket.setBufferSize(10e5);
     if (socket.open())
         RCLCPP_INFO(get_logger(), "Listening on port %d", port);
     else
@@ -55,6 +56,7 @@ void ServerUDP::Run()
 
     while (rclcpp::ok())
     {
+        auto start_t = std::clock();
         auto receivedMessage = socket.receive(bufferView);
         if (!receivedMessage)
         {
@@ -80,6 +82,8 @@ void ServerUDP::Run()
         }
 
         currentMessage->packets.push_back(packet);
+
+        RCLCPP_INFO(get_logger(), "Ellapsed %fs", ((double)(std::clock() - start_t) / CLOCKS_PER_SEC));
 
         if (currentMessage->isComplete())
         {

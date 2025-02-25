@@ -10,25 +10,30 @@
 #include <string>
 #include <unordered_map>
 
-namespace MinimalSocket::samples {
+namespace MinimalSocket::samples
+{
 
-class NamesCircularIterator {
-public:
-  using Names = std::unordered_map<std::string, std::string>;
-  using NamesIterator = Names::const_iterator;
-  static inline Names NAMES_SURNAMES = {{"Luciano", "Pavarotti"},
-                                        {"Gengis", "Khan"},
-                                        {"Giulio", "Cesare"},
-                                        {"Theodor", "Roosvelt"},
-                                        {"Immanuel", "Kant"}};
+    class NamesCircularIterator
+    {
+    public:
+        using Names = std::unordered_map<std::string, std::string>;
+        using NamesIterator = Names::const_iterator;
+        static inline Names NAMES_SURNAMES = {{"Luciano", "Pavarotti"},
+                                              {"Gengis", "Khan"},
+                                              {"Giulio", "Cesare"},
+                                              {"Theodor", "Roosvelt"},
+                                              {"Immanuel", "Kant"}};
 
-  NamesCircularIterator() = default;
+        NamesCircularIterator() = default;
 
-  const NamesIterator &current() { return current_; };
+        const NamesIterator& current()
+        {
+            return current_;
+        };
 
-  void next();
+        void next();
 
-private:
-  NamesIterator current_ = NAMES_SURNAMES.begin();
-};
+    private:
+        NamesIterator current_ = NAMES_SURNAMES.begin();
+    };
 } // namespace MinimalSocket::samples

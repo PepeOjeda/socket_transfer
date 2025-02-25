@@ -10,17 +10,19 @@
 #include <MinimalSocket/core/Address.h>
 #include <mutex>
 
-namespace MinimalSocket::test {
-class PortFactory {
-public:
-  static PortFactory &get();
+namespace MinimalSocket::test
+{
+    class PortFactory
+    {
+    public:
+        static PortFactory& get();
 
-  Port makePort();
+        Port makePort();
 
-private:
-  PortFactory();
+    private:
+        PortFactory();
 
-  std::mutex port_mtx;
-  Port port;
-};
+        std::mutex port_mtx;
+        Port port;
+    };
 } // namespace MinimalSocket::test

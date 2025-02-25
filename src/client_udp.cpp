@@ -40,9 +40,11 @@ ClientUDP::ClientUDP()
 
     std::string serverIP = declare_parameter("serverIP", "127.0.0.1");
     MinimalSocket::Port serverPort = declare_parameter("serverPort", 15768);
-    RCLCPP_INFO(get_logger(), "Sending images to %s:%d", serverIP.c_str(), serverPort);
     serverAddress.emplace(serverIP, serverPort);
+
+    socket.setBufferSize(10e5);
     socket.open();
+    RCLCPP_INFO(get_logger(), "Sending images to %s:%d", serverIP.c_str(), serverPort);
 
     buffer.resize(bufferSize);
 }
@@ -68,7 +70,7 @@ void ClientUDP::ImageCallback(const CompressedImage::SharedPtr msg)
         bool success = socket.sendTo(AsConst(packet.data), *serverAddress);
         if (!success)
             RCLCPP_ERROR(get_logger(), "Failed to send message to %s:%d", serverAddress->getHost().c_str(), serverAddress->getPort());
-        rclcpp::sleep_for(std::chrono::microseconds(1000));
+        rclcpp::sleep_for(std::chrono::microseconds(200));
     }
     imageID++;
 }

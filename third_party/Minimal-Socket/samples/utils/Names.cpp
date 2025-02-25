@@ -7,10 +7,13 @@
 
 #include <Names.h>
 
-namespace MinimalSocket::samples {
-void NamesCircularIterator::next() {
-  if (++current_ == NAMES_SURNAMES.end()) {
-    current_ = NAMES_SURNAMES.begin();
-  }
-}
+namespace MinimalSocket::samples
+{
+    void NamesCircularIterator::next()
+    {
+        if (++current_ == NAMES_SURNAMES.end())
+        {
+            current_ = NAMES_SURNAMES.begin();
+        }
+    }
 } // namespace MinimalSocket::samples

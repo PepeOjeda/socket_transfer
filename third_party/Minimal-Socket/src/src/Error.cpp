@@ -9,21 +9,27 @@
 
 #include "../src/SocketHandler.h"
 
-namespace MinimalSocket {
-namespace {
-int getLastErrorCode() {
-  int res =
+namespace MinimalSocket
+{
+    namespace
+    {
+        int getLastErrorCode()
+        {
+            int res =
 #ifdef _WIN32
-      WSAGetLastError();
+                WSAGetLastError();
 #else
-      static_cast<int>(errno);
+                static_cast<int>(errno);
 #endif
-  return res;
-}
-} // namespace
+            return res;
+        }
+    } // namespace
 
-ErrorCodeHolder::ErrorCodeHolder() : errorCode{getLastErrorCode()} {}
+    ErrorCodeHolder::ErrorCodeHolder()
+        : errorCode{getLastErrorCode()}
+    {}
 
-SocketError::SocketError(const std::string &what)
-    : ErrorCodeHolder{}, Error(what, " , error code: ", getErrorCode()) {}
+    SocketError::SocketError(const std::string& what)
+        : ErrorCodeHolder{}, Error(what, " , error code: ", getErrorCode())
+    {}
 } // namespace MinimalSocket

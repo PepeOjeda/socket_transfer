@@ -26,7 +26,8 @@
 #error "Not supported system by MinimalSocket"
 #endif
 
-namespace MinimalSocket {
+namespace MinimalSocket
+{
 #ifdef _WIN32
 #define SCK_INVALID_SOCKET INVALID_SOCKET
 #define SCK_SOCKET_ERROR SOCKET_ERROR
@@ -39,65 +40,70 @@ namespace MinimalSocket {
  * socket id
  */
 #ifdef _WIN32
-using SocketID = SOCKET;
+    using SocketID = SOCKET;
 #else
-using SocketID = int;
+    using SocketID = int;
 #endif
 
-/**
- * An object storing a socket API handler and containing the minimal
- * functionalities for interacting with it.
- */
-class SocketHandler {
-public:
-  SocketHandler(const SocketHandler &) = delete;
-  SocketHandler &operator=(const SocketHandler &) = delete;
-  SocketHandler(SocketHandler &&) = delete;
-  SocketHandler &operator=(SocketHandler &&) = delete;
+    /**
+     * An object storing a socket API handler and containing the minimal
+     * functionalities for interacting with it.
+     */
+    class SocketHandler
+    {
+    public:
+        SocketHandler(const SocketHandler&) = delete;
+        SocketHandler& operator=(const SocketHandler&) = delete;
+        SocketHandler(SocketHandler&&) = delete;
+        SocketHandler& operator=(SocketHandler&&) = delete;
 
-  auto accessId() const { return socket_id; };
+        auto accessId() const
+        {
+            return socket_id;
+        };
 
-  /**
-   * @brief an invalid socket id is created
-   */
-  SocketHandler() = default;
+        /**
+         * @brief an invalid socket id is created
+         */
+        SocketHandler() = default;
 
-  /**
-   * @brief internally calls shut down
-   */
-  ~SocketHandler();
+        /**
+         * @brief internally calls shut down
+         */
+        ~SocketHandler();
 
-  void shutDown();
+        void shutDown();
 
-  /**
-   * @brief regenerates the socket descriptor, i.e. creates a new socket
-   */
-  void reset(SocketType type, AddressFamily family);
+        /**
+         * @brief regenerates the socket descriptor, i.e. creates a new socket
+         */
+        void reset(SocketType type, AddressFamily family);
 
-  /**
-   * @brief the passed handler should be already externally created and setup
-   * (for blocking or non blocking node).
-   */
-  void reset(SocketID hndl);
+        /**
+         * @brief the passed handler should be already externally created and setup
+         * (for blocking or non blocking node).
+         */
+        void reset(SocketID hndl);
 
-private:
-  SocketID socket_id = SCK_INVALID_SOCKET;
-};
+    private:
+        SocketID socket_id = SCK_INVALID_SOCKET;
+    };
 
 #ifdef _WIN32
-class WSALazyInitializer {
-public:
-  static void lazyInit();
+    class WSALazyInitializer
+    {
+    public:
+        static void lazyInit();
 
-  ~WSALazyInitializer();
+        ~WSALazyInitializer();
 
-private:
-  WSALazyInitializer(const WSAVersion &version);
+    private:
+        WSALazyInitializer(const WSAVersion& version);
 
-  static std::mutex lazy_proxy_mtx;
-  static std::unique_ptr<WSALazyInitializer> lazy_proxy;
+        static std::mutex lazy_proxy_mtx;
+        static std::unique_ptr<WSALazyInitializer> lazy_proxy;
 
-  const WSAVersion configured_version;
-};
+        const WSAVersion configured_version;
+    };
 #endif
 } // namespace MinimalSocket

@@ -223,7 +223,7 @@ inline void RelocatePacket(Packet& packet, MinimalSocket::BufferView& bufferView
     writer.Write(packet.data.buffer, packet.data.buffer_size);
 
     packet.data.buffer = bufferView.buffer;
-    
+
     bufferView.buffer += writer.currentOffset();
     bufferView.buffer_size -= writer.currentOffset();
 }

@@ -18,28 +18,30 @@
 
 using namespace std;
 
-int main(const int argc, const char **argv) {
-  cout << "-----------------------  Client  -----------------------" << endl;
-  PARSE_ARGS
+int main(const int argc, const char** argv)
+{
+    cout << "-----------------------  Client  -----------------------" << endl;
+    PARSE_ARGS
 
-  const auto server_host = options->getValue<std::string>("host", "127.0.0.1");
-  const auto server_port = options->getValue<MinimalSocket::Port>("port");
-  const auto rate = options->getValue<std::chrono::milliseconds>(
-      "rate", std::chrono::milliseconds{250});
+    const auto server_host = options->getValue<std::string>("host", "127.0.0.1");
+    const auto server_port = options->getValue<MinimalSocket::Port>("port");
+    const auto rate = options->getValue<std::chrono::milliseconds>(
+        "rate", std::chrono::milliseconds{250});
 
-  const MinimalSocket::Address server_address(server_host, server_port);
-  MinimalSocket::tcp::TcpClient<true> client(server_address);
+    const MinimalSocket::Address server_address(server_host, server_port);
+    MinimalSocket::tcp::TcpClient<true> client(server_address);
 
-  cout << "Connecting to " << MinimalSocket::to_string(server_address) << endl;
-  if (!client.open()) {
-    cerr << "Failed to open connection" << endl;
-    return EXIT_FAILURE;
-  }
-  cout << "Connected" << endl;
+    cout << "Connecting to " << MinimalSocket::to_string(server_address) << endl;
+    if (!client.open())
+    {
+        cerr << "Failed to open connection" << endl;
+        return EXIT_FAILURE;
+    }
+    cout << "Connected" << endl;
 
-  MinimalSocket::samples::ask(client, rate,
-                              options->getValue<int>("cycles", 5));
+    MinimalSocket::samples::ask(client, rate,
+                                options->getValue<int>("cycles", 5));
 
-  // the connection will be close when destroying the client object
-  return EXIT_SUCCESS;
+    // the connection will be close when destroying the client object
+    return EXIT_SUCCESS;
 }
