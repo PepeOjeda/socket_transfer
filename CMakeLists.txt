@@ -10,33 +10,24 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 ${CMAKE_CXX_FLAGS}")
 find_package(ament_cmake REQUIRED)
 set(AMENT_DEPS
     rclcpp
-    sensor_msgs
 )
-foreach(Dependency IN ITEMS ${AMENT_DEPS})
-  find_package(${Dependency} REQUIRED)
-endforeach()
+find_package(rclcpp REQUIRED)
 find_package(fmt REQUIRED)
+
+include_directories(include)
 
 # Sockets library
 add_subdirectory(third_party/Minimal-Socket)
 
-# Client node
-add_executable(client_udp src/client_udp.cpp)
-ament_target_dependencies(client_udp ${AMENT_DEPS})
-target_link_libraries(client_udp MinimalSocket fmt)
-
-# server node
-add_executable(server_udp src/server_udp.cpp)
-ament_target_dependencies(server_udp ${AMENT_DEPS})
-target_link_libraries(server_udp MinimalSocket fmt)
-
-
 # Install
-install(
-  TARGETS client_udp server_udp 
-  DESTINATION lib/${PROJECT_NAME}
-)
 
+install(
+  DIRECTORY include/socket_transfer third_party/Minimal-Socket/src/header/MinimalSocket
+  DESTINATION include
+)
+ament_export_include_directories(include)
+ament_export_libraries(MinimalSocket)
+    
 install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
 )

@@ -1,8 +1,8 @@
+#pragma once
 #include "MinimalSocket/core/Definitions.h"
 #include "packet.hpp"
 #include <cassert>
 #include <cmath>
-#include <sensor_msgs/msg/compressed_image.hpp>
 #include <string.h>
 
 inline constexpr size_t bufferSize = 10e6;
@@ -46,25 +46,26 @@ private:
     char* end;
 };
 
-inline std::vector<Packet> Serialize(const sensor_msgs::msg::CompressedImage& msg,
-                                     uint8_t imageID,
-                                     MinimalSocket::BufferView mainBufferView)
+// must be specialized for each type of message
+// returns a BufferView that points to the serialized message, with the size that was used (not the size that is available in the entire buffer)
+// the original BufferView is unchanged, the caller is responsible for advancing the pointer if required
+template <typename T>
+MinimalSocket::BufferView Serialize(const T& msg, MinimalSocket::BufferView bufferView);
+
+// the data field of the packets returned by this includes the packet header itself, even if a copy of the header exists separately from it
+// reasoning being, it makes the process of sending the message easier by having a single bufferview include both header and data
+inline std::vector<Packet> DividePackets(MinimalSocket::BufferView source,
+                                         uint8_t messageID,
+                                         MinimalSocket::BufferView destination)
 {
-    size_t bytesToWrite =
-        sizeof(msg.header.stamp)       //
-        + sizeof(uint16_t)             // length of frame id
-        + msg.header.frame_id.length() //
-        + sizeof(uint16_t)             // length of format string
-        + msg.format.length()          //
-        + sizeof(size_t)               // length of image data
-        + msg.data.size();
+    size_t bytesToWrite = source.buffer_size;
 
     uint16_t numPackets = std::ceil(bytesToWrite / static_cast<double>(packetSize - sizeof(PacketHeader)));
 
-    const uint8_t* dataCurrentPtr = msg.data.data();
-    const uint8_t* dataEndPtr = msg.data.data() + msg.data.size();
+    const char* dataCurrentPtr = source.buffer;
+    const char* dataEndPtr = source.buffer + source.buffer_size;
 
-    BufferWriter writer(mainBufferView.buffer, mainBufferView.buffer_size);
+    BufferWriter writer(destination.buffer, destination.buffer_size);
 
     // list we will return
     std::vector<Packet> packetViews;
@@ -73,38 +74,17 @@ inline std::vector<Packet> Serialize(const sensor_msgs::msg::CompressedImage& ms
     {
         if (packetID == numPackets - 1)
             printf("final package");
-        char* headerStartPtr = mainBufferView.buffer + writer.currentOffset();
+        char* packetStartPtr = destination.buffer + writer.currentOffset();
 
         // write packet
         //-----------------------------------
-        PacketHeader packetHeader{.imageID = imageID, .packetID = packetID, .numPackets = numPackets};
+        PacketHeader packetHeader{.messageID = messageID, .packetID = packetID, .numPackets = numPackets};
         writer.Write(&packetHeader);
 
-        // first packet includes the msg header
-        if (packetID == 0)
-        {
-            // Header
-            writer.Write(&msg.header.stamp.sec);
-            writer.Write(&msg.header.stamp.nanosec);
-
-            uint16_t frameIDSize = msg.header.frame_id.length();
-            writer.Write(&frameIDSize);
-            writer.Write(msg.header.frame_id.data(), frameIDSize);
-
-            // format
-            uint16_t formatSize = msg.format.length();
-            writer.Write(&formatSize);
-            writer.Write(msg.format.data(), formatSize);
-
-            // data
-            size_t dataSize = msg.data.size();
-            writer.Write(&dataSize);
-        }
-
         // write as much of the image data as will fit in the current package, and advance the data pointer accordingly
-        char* currentBufferPtr = mainBufferView.buffer + writer.currentOffset();
+        char* currentBufferPtr = destination.buffer + writer.currentOffset();
         size_t remainingBytesMsgData = dataEndPtr - dataCurrentPtr;
-        size_t remainingBytesInPacket = packetSize - (currentBufferPtr - headerStartPtr);
+        size_t remainingBytesInPacket = packetSize - (currentBufferPtr - packetStartPtr);
 
         size_t writeSize = std::min(remainingBytesMsgData, remainingBytesInPacket);
         writer.Write(dataCurrentPtr, writeSize);
@@ -112,8 +92,8 @@ inline std::vector<Packet> Serialize(const sensor_msgs::msg::CompressedImage& ms
 
         // add the bufferview for this packet to the vector
         //-----------------------------------
-        currentBufferPtr = mainBufferView.buffer + writer.currentOffset();
-        MinimalSocket::BufferView packetBufView{headerStartPtr, (size_t)(currentBufferPtr - headerStartPtr)};
+        currentBufferPtr = destination.buffer + writer.currentOffset();
+        MinimalSocket::BufferView packetBufView{packetStartPtr, (size_t)(currentBufferPtr - packetStartPtr)};
         packetViews.push_back(Packet{packetHeader, packetBufView});
     }
     return packetViews;
@@ -157,6 +137,9 @@ private:
     char* end;
 };
 
+template <typename T>
+void Deserialize(T& msg, MinimalSocket::BufferView bufferView);
+
 inline Packet ReadPacketAndAdvance(MinimalSocket::BufferView& bufferView, size_t dataSize)
 {
     BufferReader reader(bufferView.buffer, bufferView.buffer_size);
@@ -173,48 +156,21 @@ inline Packet ReadPacketAndAdvance(MinimalSocket::BufferView& bufferView, size_t
     return packet;
 }
 
-inline void Deserialize(sensor_msgs::msg::CompressedImage& msg, const std::vector<Packet>& packets)
+// moves all of this msg's data into a buffer. Contiguously, in order, and without packet headers
+// the original BufferView is unchanged, the caller is responsible for advancing the pointer if required
+inline MinimalSocket::BufferView ExtractData(const std::vector<Packet>& packets, MinimalSocket::BufferView destination)
 {
-    uint8_t* currentDataPtr; // ptr to the next position to fill inside of the image msg
-
-    // parse first packet, which contains the message header
-    {
-        BufferReader reader(packets[0].data.buffer, packets[0].data.buffer_size);
-
-        // Read Image message header from first packet
-        //  Header
-        reader.Read(&msg.header.stamp.sec);
-        reader.Read(&msg.header.stamp.nanosec);
-
-        uint16_t frameIDSize;
-        reader.Read(&frameIDSize);
-        msg.header.frame_id.resize(frameIDSize);
-        reader.Read(msg.header.frame_id.data(), frameIDSize);
-
-        // format
-        uint16_t formatSize;
-        reader.Read(&formatSize);
-        msg.format.resize(formatSize);
-        reader.Read(msg.format.data(), formatSize);
-
-        // data
-        size_t dataSize;
-        reader.Read(&dataSize);
-        msg.data.resize(dataSize);
-        currentDataPtr = msg.data.data();
-
-        size_t dataThisPacket = packets[0].data.buffer_size - reader.currentOffset();
-        reader.Read(msg.data.data(), dataThisPacket);
-        currentDataPtr += dataThisPacket;
-    }
-
-    for (int i = 1; i < packets.size(); i++)
+    MinimalSocket::BufferView extractedData = destination;
+    for (int i = 0; i < packets.size(); i++)
     {
         const Packet& packet = packets[i];
         BufferReader reader(packet.data.buffer, packet.data.buffer_size);
-        reader.Read(currentDataPtr, packet.data.buffer_size);
-        currentDataPtr += packet.data.buffer_size;
+        reader.Read(destination.buffer, packet.data.buffer_size);
+        destination.buffer += packet.data.buffer_size;
     }
+    // how much has the pointer advanced while reading into the buffer?
+    extractedData.buffer_size = destination.buffer - extractedData.buffer;
+    return extractedData;
 }
 
 inline void RelocatePacket(Packet& packet, MinimalSocket::BufferView& bufferView)

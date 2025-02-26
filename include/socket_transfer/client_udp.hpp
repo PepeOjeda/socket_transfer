@@ -1,21 +1,21 @@
+#pragma once
 #include "MinimalSocket/udp/UdpSocket.h"
-#include "Serialization.hpp"
+#include "serialization.hpp"
 #include "utils.hpp"
 #include <fmt/format.h>
 #include <rclcpp/rclcpp.hpp>
 
-using sensor_msgs::msg::CompressedImage;
-
+template <typename Msg>
 class ClientUDP : public rclcpp::Node
 {
 public:
     ClientUDP();
 
 private:
-    void ImageCallback(const CompressedImage::SharedPtr msg);
+    void ImageCallback(const typename Msg::SharedPtr msg);
 
 private:
-    rclcpp::Subscription<CompressedImage>::SharedPtr subscription;
+    typename rclcpp::Subscription<Msg>::SharedPtr subscription;
     MinimalSocket::udp::Udp<true> socket;
     std::optional<MinimalSocket::Address> serverAddress;
 
@@ -23,19 +23,12 @@ private:
     uint8_t imageID = 0;
 };
 
-int main(int argc, char** argv)
-{
-    rclcpp::init(argc, argv);
-    auto node = std::make_shared<ClientUDP>();
-    rclcpp::spin(node);
-    return 0;
-}
-
-ClientUDP::ClientUDP()
+template <typename Msg>
+ClientUDP<Msg>::ClientUDP()
     : Node("image_transport_client")
 {
     std::string topic = declare_parameter("topic", "/rgbd/color/compressed");
-    subscription = create_subscription<CompressedImage>(topic, 1, std::bind(&ClientUDP::ImageCallback, this, std::placeholders::_1));
+    subscription = create_subscription<Msg>(topic, 1, std::bind(&ClientUDP::ImageCallback, this, std::placeholders::_1));
     RCLCPP_INFO(get_logger(), "Listening on topic '%s'", topic.c_str());
 
     std::string serverIP = declare_parameter("serverIP", "127.0.0.1");
@@ -49,7 +42,8 @@ ClientUDP::ClientUDP()
     buffer.resize(bufferSize);
 }
 
-void ClientUDP::ImageCallback(const CompressedImage::SharedPtr msg)
+template <typename Msg>
+void ClientUDP<Msg>::ImageCallback(const typename Msg::SharedPtr msg)
 {
     // RCLCPP_INFO(get_logger(), "Got image!");
 

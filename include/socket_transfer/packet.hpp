@@ -5,7 +5,7 @@
 
 struct PacketHeader
 {
-    uint8_t imageID;
+    uint8_t messageID;
     uint16_t packetID;
     uint16_t numPackets;
 };
@@ -26,13 +26,13 @@ struct Message
             return false;
         sort();
 
-        uint8_t imageID = packets.at(0).header.imageID;
+        uint8_t messageID = packets.at(0).header.messageID;
         // check if we have duplicates or something, i don't know
         for (int i = 0; i < packets.size(); i++)
         {
-            if (packets[i].header.imageID != imageID)
+            if (packets[i].header.messageID != messageID)
             {
-                printImageIDError();
+                printmessageIDError();
                 return false;
             }
             if (packets[i].header.packetID != i)
@@ -45,14 +45,14 @@ struct Message
         return true;
     }
 
-    uint16_t imageID()
+    uint16_t messageID()
     {
         if (packets.size() == 0)
         {
-            fprintf(stderr, "Asked for image ID but no packets exist!");
+            fprintf(stderr, "Asked for message ID but no packets exist!");
             return 0xffff;
         }
-        return packets[0].header.imageID;
+        return packets[0].header.messageID;
     }
 
     void sort()
@@ -65,15 +65,15 @@ struct Message
 
     void printPacketIDError()
     {
-        fprintf(stderr, "Packet IDs in message %d are weird! Look:\n", packets[0].header.imageID);
+        fprintf(stderr, "Packet IDs in message %d are weird! Look:\n", packets[0].header.messageID);
         for (int j = 0; j < packets.size(); j++)
             fprintf(stderr, "\t %d\n", packets[j].header.packetID);
     }
 
-    void printImageIDError()
+    void printmessageIDError()
     {
-        fprintf(stderr, "Image IDs are not all the same! Look:\n");
+        fprintf(stderr, "Message IDs are not all the same! Look:\n");
         for (int j = 0; j < packets.size(); j++)
-            fprintf(stderr, "\t %d\n", packets[j].header.imageID);
+            fprintf(stderr, "\t %d\n", packets[j].header.messageID);
     }
 };

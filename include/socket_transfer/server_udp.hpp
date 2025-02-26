@@ -1,17 +1,10 @@
-#include "Serialization.hpp"
-#include "utils.hpp"
+#pragma once
 #include <MinimalSocket/udp/UdpSocket.h>
-#include <fmt/format.h>
 #include <rclcpp/rclcpp.hpp>
-#include <fstream>
+#include "serialization.hpp"
 
-using sensor_msgs::msg::CompressedImage;
 
-// Gets compressed images from UDP socket, deserializes them, and publishes them on a ros2 topic
-
-// TODO currently this can only have 1 frame being reconstructed at a time
-//  when a packet from the next image is received, the previous frame is discarded
-//  I think this is generally good enough, but it might be interesting to do something more sophisticated
+template <typename Msg>
 class ServerUDP : public rclcpp::Node
 {
 public:
@@ -19,27 +12,17 @@ public:
     void Run();
 
 private:
-    void printImage(CompressedImage& msg); // for debugging
-
-private:
     MinimalSocket::Port port;
     MinimalSocket::udp::Udp<true> socket;
-    rclcpp::Publisher<CompressedImage>::SharedPtr publisher;
+    typename rclcpp::Publisher<Msg>::SharedPtr publisher;
     std::optional<Message> currentMessage;
 };
 
-/* Main */
-
-int main(int argc, char** argv)
-{
-    rclcpp::init(argc, argv);
-    auto node = std::make_shared<ServerUDP>();
-    node->Run();
-}
 
 /* Server implementation */
 
-ServerUDP::ServerUDP()
+template <typename Msg>
+ServerUDP<Msg>::ServerUDP()
     : Node("image_transport_server")
 {
     port = declare_parameter<MinimalSocket::Port>("port", 15768);
@@ -54,18 +37,18 @@ ServerUDP::ServerUDP()
     }
 
     std::string topic = declare_parameter("topic", "receivedImage");
-    publisher = create_publisher<CompressedImage>(topic, 1);
+    publisher = create_publisher<Msg>(topic, 1);
     RCLCPP_INFO(get_logger(), "Publishing images on topic '%s'", publisher->get_topic_name());
 }
 
-void ServerUDP::Run()
+template <typename Msg>
+void ServerUDP<Msg>::Run()
 {
     std::vector<char> buffer(bufferSize, 0);
     MinimalSocket::BufferView bufferView{.buffer = buffer.data(), .buffer_size = bufferSize};
 
     while (rclcpp::ok())
     {
-        Utils::Time::Stopwatch stopwatch;
         auto receivedMessage = socket.receive(bufferView);
         if (!receivedMessage)
         {
@@ -75,16 +58,16 @@ void ServerUDP::Run()
 
         Packet packet = ReadPacketAndAdvance(bufferView, receivedMessage->received_bytes);
         // RCLCPP_INFO(get_logger(), "Received packet! Image %d: %d/%d, %ld bytes",
-        //             packet.header.imageID,
+        //             packet.header.messageID,
         //             packet.header.packetID,
         //             packet.header.numPackets - 1,
         //             receivedMessage->received_bytes);
 
         if (!currentMessage)
             currentMessage.emplace();
-        else if (currentMessage->imageID() != packet.header.imageID)
+        else if (currentMessage->messageID() != packet.header.messageID)
         {
-            RCLCPP_WARN(get_logger(), "Discarding message %d, we received a packet for message %d", currentMessage->imageID(), packet.header.imageID);
+            RCLCPP_WARN(get_logger(), "Discarding message %d, we received a packet for message %d", currentMessage->messageID(), packet.header.messageID);
             bufferView = {.buffer = buffer.data(), .buffer_size = bufferSize};
             RelocatePacket(packet, bufferView); // this new packet should now be moved to the beginning of the buffer, to avoid writing over it
             currentMessage.emplace();
@@ -92,25 +75,15 @@ void ServerUDP::Run()
 
         currentMessage->packets.push_back(packet);
 
-        // RCLCPP_INFO(get_logger(), "Ellapsed %fs", stopwatch.ellapsed());
-
         if (currentMessage->isComplete())
         {
-            CompressedImage msg;
+            Msg msg;
             Deserialize(msg, currentMessage->packets);
             publisher->publish(msg);
-            // printImage(msg);
 
             currentMessage = std::nullopt;
             bufferView = {.buffer = buffer.data(), .buffer_size = bufferSize};
             RCLCPP_INFO(get_logger(), "Message published!");
         }
     }
-}
-
-void ServerUDP::printImage(CompressedImage& msg)
-{
-    std::ofstream file(fmt::format("mostRecent.png"));
-    file.write((char*)msg.data.data(), msg.data.size());
-    file.close();
 }
