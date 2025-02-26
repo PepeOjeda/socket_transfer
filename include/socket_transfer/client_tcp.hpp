@@ -1,22 +1,22 @@
 #pragma once
-#include "MinimalSocket/udp/UdpSocket.h"
+#include "MinimalSocket/tcp/TcpClient.h"
 #include "serialization.hpp"
 #include "utils.hpp"
 #include <fmt/format.h>
 #include <rclcpp/rclcpp.hpp>
 
 template <typename Msg>
-class ClientUDP : public rclcpp::Node
+class ClientTCP : public rclcpp::Node
 {
 public:
-    ClientUDP();
+    ClientTCP();
 
 private:
     void MsgCallback(const typename Msg::SharedPtr msg);
 
 private:
     typename rclcpp::Subscription<Msg>::SharedPtr subscription;
-    MinimalSocket::udp::Udp<true> socket;
+    std::optional<MinimalSocket::tcp::TcpClient<true>> socket;
     std::optional<MinimalSocket::Address> serverAddress;
 
     std::vector<char> buffer;
@@ -24,26 +24,27 @@ private:
 };
 
 template <typename Msg>
-ClientUDP<Msg>::ClientUDP()
+ClientTCP<Msg>::ClientTCP()
     : Node("socket_transport_client")
 {
     std::string topic = declare_parameter("topic", "/rgbd/color/compressed");
-    subscription = create_subscription<Msg>(topic, 1, std::bind(&ClientUDP::MsgCallback, this, std::placeholders::_1));
+    subscription = create_subscription<Msg>(topic, 1, std::bind(&ClientTCP::MsgCallback, this, std::placeholders::_1));
     RCLCPP_INFO(get_logger(), "Listening on topic '%s'", topic.c_str());
 
     std::string serverIP = declare_parameter("serverIP", "127.0.0.1");
     MinimalSocket::Port serverPort = declare_parameter("serverPort", 15768);
     serverAddress.emplace(serverIP, serverPort);
 
-    socket.setBufferSize(10e5);
-    socket.open();
+    socket.emplace(*serverAddress);
+    socket->setBufferSize(10e5);
+    socket->open();
     RCLCPP_INFO(get_logger(), "Sending messages to %s:%d", serverIP.c_str(), serverPort);
 
     buffer.resize(bufferSize);
 }
 
 template <typename Msg>
-void ClientUDP<Msg>::MsgCallback(const typename Msg::SharedPtr msg)
+void ClientTCP<Msg>::MsgCallback(const typename Msg::SharedPtr msg)
 {
     // RCLCPP_INFO(get_logger(), "Got message!");
 
@@ -68,7 +69,7 @@ void ClientUDP<Msg>::MsgCallback(const typename Msg::SharedPtr msg)
         //             packet.header.packetID,
         //             packet.header.numPackets - 1,
         //             packet.data.buffer_size);
-        bool success = socket.sendTo(AsConst(packet.data), *serverAddress);
+        bool success = socket->send(AsConst(packet.data));
         if (!success)
             RCLCPP_ERROR(get_logger(), "Failed to send message to %s:%d", serverAddress->getHost().c_str(), serverAddress->getPort());
         // rclcpp::sleep_for(std::chrono::microseconds(200));

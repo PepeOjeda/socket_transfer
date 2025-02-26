@@ -1,19 +1,19 @@
 #pragma once
-#include <MinimalSocket/udp/UdpSocket.h>
+#include <MinimalSocket/tcp/TcpServer.h>
 #include <rclcpp/rclcpp.hpp>
 #include "serialization.hpp"
 
 
 template <typename Msg>
-class ServerUDP : public rclcpp::Node
+class ServerTCP : public rclcpp::Node
 {
 public:
-    ServerUDP();
+    ServerTCP();
     void Run();
 
 private:
     MinimalSocket::Port port;
-    MinimalSocket::udp::Udp<true> socket;
+    MinimalSocket::tcp::TcpServer<true> socket;
     typename rclcpp::Publisher<Msg>::SharedPtr publisher;
     std::optional<Message> currentMessage;
 };
@@ -22,7 +22,7 @@ private:
 /* Server implementation */
 
 template <typename Msg>
-ServerUDP<Msg>::ServerUDP()
+ServerTCP<Msg>::ServerTCP()
     : Node("socket_transport_server")
 {
     port = declare_parameter<MinimalSocket::Port>("port", 15768);
@@ -42,21 +42,24 @@ ServerUDP<Msg>::ServerUDP()
 }
 
 template <typename Msg>
-void ServerUDP<Msg>::Run()
+void ServerTCP<Msg>::Run()
 {
+    MinimalSocket::tcp::TcpConnectionBlocking accepted_connection =
+    socket.acceptNewClient();
+
     std::vector<char> buffer(bufferSize, 0);
     MinimalSocket::BufferView bufferView{.buffer = buffer.data(), .buffer_size = bufferSize};
 
     while (rclcpp::ok())
     {
-        auto receivedMessage = socket.receive(bufferView);
-        if (!receivedMessage)
+        size_t receivedBytes = accepted_connection.receive(bufferView);
+        if (!receivedBytes)
         {
             RCLCPP_ERROR(get_logger(), "Invalid result from socket.receive(). This should never happen with a blocking socket.");
             continue;
         }
 
-        Packet packet = ReadPacketAndAdvance(bufferView, receivedMessage->received_bytes);
+        Packet packet = ReadPacketAndAdvance(bufferView, receivedBytes);
         // RCLCPP_INFO(get_logger(), "Received packet! message %d: %d/%d, %ld bytes",
         //             packet.header.messageID,
         //             packet.header.packetID,

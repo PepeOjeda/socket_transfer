@@ -81,7 +81,7 @@ inline std::vector<Packet> DividePackets(MinimalSocket::BufferView source,
         PacketHeader packetHeader{.messageID = messageID, .packetID = packetID, .numPackets = numPackets};
         writer.Write(&packetHeader);
 
-        // write as much of the image data as will fit in the current package, and advance the data pointer accordingly
+        // write as much of the message data as will fit in the current package, and advance the data pointer accordingly
         char* currentBufferPtr = destination.buffer + writer.currentOffset();
         size_t remainingBytesMsgData = dataEndPtr - dataCurrentPtr;
         size_t remainingBytesInPacket = packetSize - (currentBufferPtr - packetStartPtr);
