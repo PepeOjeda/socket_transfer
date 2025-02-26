@@ -31,10 +31,6 @@ ament_export_include_directories(include)
 ament_export_libraries(MinimalSocket fmt)
 ament_export_dependencies(rclcpp)
     
-install(DIRECTORY launch
-  DESTINATION share/${PROJECT_NAME}
-)
-
 install(TARGETS MinimalSocket
   DESTINATION lib
 )
