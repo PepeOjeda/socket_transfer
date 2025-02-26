@@ -27,7 +27,7 @@ template <typename Msg>
 ClientUDP<Msg>::ClientUDP()
     : Node("socket_transport_client")
 {
-    std::string topic = declare_parameter("topic", "/rgbd/color/compressed");
+    std::string topic = declare_parameter("topic", "messageToTransfer");
     subscription = create_subscription<Msg>(topic, 1, std::bind(&ClientUDP::MsgCallback, this, std::placeholders::_1));
     RCLCPP_INFO(get_logger(), "Listening on topic '%s'", topic.c_str());
 
