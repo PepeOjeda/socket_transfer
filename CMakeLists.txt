@@ -8,28 +8,35 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 ${CMAKE_CXX_FLAGS}")
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-set(AMENT_DEPS
-    rclcpp
-)
 find_package(rclcpp REQUIRED)
 find_package(fmt REQUIRED)
 
-include_directories(include)
 
 # Sockets library
 add_subdirectory(third_party/Minimal-Socket)
 
-# Install
+include_directories(include)
 
+# HACK: empty library to get proper IDE support with ament dependencies
+add_library(sockets src/sockets.cpp)
+ament_target_dependencies(sockets rclcpp)
+target_link_libraries(sockets fmt MinimalSocket)
+
+# Install
 install(
   DIRECTORY include/socket_transfer third_party/Minimal-Socket/src/header/MinimalSocket
   DESTINATION include
 )
 ament_export_include_directories(include)
-ament_export_libraries(MinimalSocket)
+ament_export_libraries(MinimalSocket fmt)
+ament_export_dependencies(rclcpp)
     
 install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
+)
+
+install(TARGETS MinimalSocket
+  DESTINATION lib
 )
 
 

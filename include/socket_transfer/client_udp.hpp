@@ -20,7 +20,7 @@ private:
     std::optional<MinimalSocket::Address> serverAddress;
 
     std::vector<char> buffer;
-    uint8_t imageID = 0;
+    uint8_t messageID = 0;
 };
 
 template <typename Msg>
@@ -47,17 +47,24 @@ void ClientUDP<Msg>::ImageCallback(const typename Msg::SharedPtr msg)
 {
     // RCLCPP_INFO(get_logger(), "Got image!");
 
-    MinimalSocket::BufferView bufferView;
-    bufferView.buffer = buffer.data();
-    bufferView.buffer_size = buffer.size();
-    std::vector<Packet> packets = Serialize(*msg, imageID, bufferView);
+    MinimalSocket::BufferView serializedMsgBV;
+    serializedMsgBV.buffer = buffer.data();
+    serializedMsgBV.buffer_size = buffer.size();
+
+    serializedMsgBV = Serialize(*msg, serializedMsgBV);
+
+    MinimalSocket::BufferView packetsBV;
+    packetsBV.buffer = serializedMsgBV.buffer + serializedMsgBV.buffer_size;
+    packetsBV.buffer_size = buffer.size() - serializedMsgBV.buffer_size;
+
+    std::vector<Packet> packets = DividePackets(serializedMsgBV, messageID, packetsBV);
 
     for (auto packet : packets)
     {
         if (!rclcpp::ok())
             exit(-1);
         // RCLCPP_INFO(get_logger(), "Sending packet Image %d: %d/%d, %ld bytes",
-        //             packet.header.imageID,
+        //             packet.header.messageID,
         //             packet.header.packetID,
         //             packet.header.numPackets - 1,
         //             packet.data.buffer_size);
@@ -66,5 +73,5 @@ void ClientUDP<Msg>::ImageCallback(const typename Msg::SharedPtr msg)
             RCLCPP_ERROR(get_logger(), "Failed to send message to %s:%d", serverAddress->getHost().c_str(), serverAddress->getPort());
         // rclcpp::sleep_for(std::chrono::microseconds(200));
     }
-    imageID++;
+    messageID++;
 }

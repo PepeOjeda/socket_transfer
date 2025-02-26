@@ -78,11 +78,12 @@ void ServerUDP<Msg>::Run()
         if (currentMessage->isComplete())
         {
             Msg msg;
-            Deserialize(msg, currentMessage->packets);
-            publisher->publish(msg);
-
-            currentMessage = std::nullopt;
+            ExtractData(currentMessage->packets, bufferView);
+            Deserialize<Msg>(msg, bufferView);
             bufferView = {.buffer = buffer.data(), .buffer_size = bufferSize};
+            publisher->publish(msg);
+            
+            currentMessage = std::nullopt;
             RCLCPP_INFO(get_logger(), "Message published!");
         }
     }
