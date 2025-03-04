@@ -61,7 +61,7 @@ namespace SocketTransfer
     void ClientServer<Msg>::OnResponse(MinimalSocket::BufferView bufferview)
     {
         Response response;
-        Deserialize(response, bufferview);
+        Serializer<Response>::Deserialize(response, bufferview);
         service->send_response(response.header, response.response);
     }
 

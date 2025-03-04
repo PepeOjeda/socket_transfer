@@ -69,7 +69,7 @@ namespace SocketTransfer
     inline void ServerAction<Action>::OnMessageComplete(MinimalSocket::BufferView bufView)
     {
         GoalMsg request;
-        Deserialize(request, bufView);
+        Serializer<GoalMsg>::Deserialize(request, bufView);
 
         if (request.type == GoalMsg::MsgType::SendGoal)
         {

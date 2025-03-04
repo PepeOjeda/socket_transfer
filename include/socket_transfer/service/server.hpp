@@ -40,7 +40,7 @@ namespace SocketTransfer
         server->OnMessageCompleted = [&](MinimalSocket::BufferView bufView)
         {
             Request request;
-            Deserialize(request, bufView);
+            Serializer<Request>::Deserialize(request, bufView);
             auto future = client->async_send_request(request);
             auto result = rclcpp::spin_until_future_complete(node, future);
             if (result == rclcpp::FutureReturnCode::SUCCESS)

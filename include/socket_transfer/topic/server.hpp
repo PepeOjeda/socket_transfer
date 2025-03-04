@@ -37,7 +37,7 @@ namespace SocketTransfer
         {
             RCLCPP_INFO(node->get_logger(), "Received message!");
             Msg msg;
-            Deserialize(msg, bufView);
+            Serializer<Msg>::Deserialize(msg, bufView);
             pub->publish(msg);
         };
     }

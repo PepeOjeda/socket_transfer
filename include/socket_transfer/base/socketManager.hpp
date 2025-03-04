@@ -73,7 +73,7 @@ namespace SocketTransfer
         serializedMsgBV.buffer = outputBuffer.data();
         serializedMsgBV.buffer_size = outputBuffer.size();
 
-        serializedMsgBV = Serialize(msg, serializedMsgBV);
+        serializedMsgBV = Serializer<Msg>::Serialize(msg, serializedMsgBV);
 
         MinimalSocket::BufferView packetsBV;
         packetsBV.buffer = serializedMsgBV.buffer + serializedMsgBV.buffer_size;

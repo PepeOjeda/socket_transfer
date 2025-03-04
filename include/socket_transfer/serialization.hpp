@@ -1,8 +1,8 @@
 #pragma once
 #include <MinimalSocket/core/Definitions.h>
-#include <socket_transfer/internals/packet.hpp>
 #include <cassert>
 #include <cmath>
+#include <socket_transfer/internals/packet.hpp>
 #include <string.h>
 
 namespace SocketTransfer
@@ -10,7 +10,21 @@ namespace SocketTransfer
     inline constexpr size_t bufferSize = 10e6;
     inline constexpr size_t packetSize = 1500;
 
+    // must be specialized for each type of message
+    template <typename T>
+    struct Serializer;
+    // In this specialization, you must define two static methods:
+
+    // static MinimalSocket::BufferView Serialize(const T& msg, MinimalSocket::BufferView bufferView)
+    //      returns a BufferView that points to the serialized message, with the size that was used (not the size that is available in the entire buffer)
+    //      the original BufferView is unchanged, the caller is responsible for advancing the pointer if required
+
+    // static void Deserialize(T& msg, MinimalSocket::BufferView bufferView)
+    //      expects the bufferView to have the correct size
+    //      the original BufferView is unchanged, the caller is responsible for advancing the pointer if required
+
     // Serialization
+    //-----------------------------------------------------
 
     class BufferWriter
     {
@@ -48,17 +62,12 @@ namespace SocketTransfer
         char* end;
     };
 
-    // must be specialized for each type of message
-    // returns a BufferView that points to the serialized message, with the size that was used (not the size that is available in the entire buffer)
-    // the original BufferView is unchanged, the caller is responsible for advancing the pointer if required
-    template <typename T>
-    MinimalSocket::BufferView Serialize(const T& msg, MinimalSocket::BufferView bufferView);
-
     // the data field of the packets returned by this includes the packet header itself, even if a copy of the header exists separately from it
     // reasoning being, it makes the process of sending the message easier by having a single bufferview include both header and data
-    inline std::vector<Packet> DividePackets(MinimalSocket::BufferView source,
-                                             uint8_t messageID,
-                                             MinimalSocket::BufferView destination)
+    inline std::vector<Packet>
+    DividePackets(MinimalSocket::BufferView source,
+                  uint8_t messageID,
+                  MinimalSocket::BufferView destination)
     {
         size_t bytesToWrite = source.buffer_size;
 
@@ -142,9 +151,6 @@ namespace SocketTransfer
         char* current;
         char* end;
     };
-
-    template <typename T>
-    void Deserialize(T& msg, MinimalSocket::BufferView bufferView);
 
     inline Packet ReadPacketAndAdvance(MinimalSocket::BufferView& bufferView, size_t dataSize)
     {

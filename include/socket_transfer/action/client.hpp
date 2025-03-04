@@ -68,7 +68,7 @@ namespace SocketTransfer
     void ClientAction<Action>::OnResponse(MinimalSocket::BufferView bufferview)
     {
         FeedbackMsg response;
-        Deserialize(response, bufferview);
+        Serializer<FeedbackMsg>::Deserialize(response, bufferview);
 
         try
         {
