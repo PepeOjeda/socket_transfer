@@ -20,7 +20,6 @@ namespace SocketTransfer
         std::unique_ptr<SocketManager> server;
         rclcpp::Node::SharedPtr node;
         std::shared_ptr<rclcpp::Client<Msg>> client;
-        bool running = false;
     };
 
     template <typename Msg>
@@ -56,7 +55,6 @@ namespace SocketTransfer
     template <typename Msg>
     inline void ServerService<Msg>::Run()
     {
-        running = true;
         server->Run();
     }
 } // namespace SocketTransfer
