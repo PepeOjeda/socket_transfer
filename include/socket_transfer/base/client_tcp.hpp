@@ -7,13 +7,15 @@ namespace SocketTransfer
 {
     class ClientTCPBase : public SocketManager
     {
+        using SocketManager::SocketManager;
+
     public:
         ClientTCPBase();
         void Run();
 
     protected:
         bool OpenSocket() override;
-        size_t Receive(MinimalSocket::BufferView buffer, MinimalSocket::Timeout timeout) override;
+        size_t Receive(MinimalSocket::BufferView buffer) override;
         bool Send(MinimalSocket::BufferView messageView) override;
 
     private:
@@ -22,18 +24,29 @@ namespace SocketTransfer
 
     inline bool ClientTCPBase::OpenSocket()
     {
-        MinimalSocket::Port serverPort = this->node->template declare_parameter<MinimalSocket::Port>("serverPort", 15768);
-        std::string serverIP = this->node->template declare_parameter<std::string>("serverIP", "127.0.0.1");
+        MinimalSocket::Port serverPort = this->node->declare_parameter<MinimalSocket::Port>("serverPort", 15768);
+        std::string serverIP = this->node->declare_parameter<std::string>("serverIP", "127.0.0.1");
 
+        RCLCPP_INFO(node->get_logger(), "Trying to connect to server at %s:%d", serverIP.c_str(), serverPort);
         MinimalSocket::Address serverAddress{serverIP, serverPort};
         socket.emplace(serverAddress);
-        socket->setBufferSize(10e5);
-        return socket->open();
+
+        if (socket->open())
+        {
+            RCLCPP_INFO(node->get_logger(), "Connected to server at %s:%d", serverIP.c_str(), serverPort);
+            socket->setBufferSize(10e5);
+            return true;
+        }
+        else
+        {
+            RCLCPP_ERROR(node->get_logger(), "Could not connect to server at %s:%d", serverIP.c_str(), serverPort);
+            return false;
+        }
     }
 
-    inline size_t ClientTCPBase::Receive(MinimalSocket::BufferView buffer, MinimalSocket::Timeout timeout)
+    inline size_t ClientTCPBase::Receive(MinimalSocket::BufferView buffer)
     {
-        return socket->receive(buffer, timeout);
+        return socket->receive(buffer);
     }
 
     inline bool ClientTCPBase::Send(MinimalSocket::BufferView messageView)

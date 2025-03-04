@@ -7,7 +7,7 @@
 
 namespace SocketTransfer
 {
-    inline constexpr size_t bufferSize = 10e5;
+    inline constexpr size_t bufferSize = 10e6;
     inline constexpr size_t packetSize = 1500;
 
     // Serialization

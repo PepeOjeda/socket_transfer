@@ -47,7 +47,7 @@ namespace MinimalSocket
     {
         if (setsockopt(getSocketDescriptor(), SOL_SOCKET, SO_RCVBUF, &size, sizeof(size)) == -1)
         {
-            fprintf(stderr, "Error setting socket size");
+            fprintf(stderr, "Error setting socket size!\n");
         }
     }
 

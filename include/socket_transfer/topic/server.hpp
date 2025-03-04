@@ -1,6 +1,6 @@
 #pragma once
-#include "socket_transfer/base/server_tcp.hpp"
 #include "socket_transfer/base/node_udp.hpp"
+#include "socket_transfer/base/server_tcp.hpp"
 
 namespace SocketTransfer
 {
@@ -21,11 +21,11 @@ namespace SocketTransfer
     template <typename Msg>
     inline ServerTopic<Msg>::ServerTopic()
     {
-        node = std::make_shared<rclcpp::Node>("client");
+        node = std::make_shared<rclcpp::Node>("server");
 
         std::string topic = node->declare_parameter("topic", "/topic");
         pub = node->create_publisher<Msg>(topic, 1);
-        RCLCPP_INFO(node->get_logger(), "Publishing to topic %s", pub->get_topic_name());
+        RCLCPP_INFO(node->get_logger(), "Publishing to topic '%s'", pub->get_topic_name());
 
         std::string protocol = node->declare_parameter<std::string>("protocol", "UDP");
         if (protocol == "UDP")
@@ -35,6 +35,7 @@ namespace SocketTransfer
 
         server->OnMessageCompleted = [&](MinimalSocket::BufferView bufView)
         {
+            RCLCPP_INFO(node->get_logger(), "Received message!");
             Msg msg;
             Deserialize(msg, bufView);
             pub->publish(msg);

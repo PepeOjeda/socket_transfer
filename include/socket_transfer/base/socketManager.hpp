@@ -2,6 +2,7 @@
 #include "../serialization.hpp"
 #include <MinimalSocket/tcp/TcpServer.h>
 #include <rclcpp/rclcpp.hpp>
+#include <thread>
 
 namespace SocketTransfer
 {
@@ -17,7 +18,7 @@ namespace SocketTransfer
 
     protected:
         virtual bool OpenSocket() = 0;
-        virtual size_t Receive(MinimalSocket::BufferView buffer, MinimalSocket::Timeout timeout) = 0;
+        virtual size_t Receive(MinimalSocket::BufferView buffer) = 0;
         virtual bool Send(MinimalSocket::BufferView messageView) = 0;
 
     private:
@@ -47,24 +48,31 @@ namespace SocketTransfer
 
     inline void SocketManager::Run()
     {
-        OpenSocket();
-        while (rclcpp::ok())
+        if (OpenSocket())
+            RCLCPP_INFO(node->get_logger(), "Ready!");
+        else
         {
-            rclcpp::spin_some(node);
-            ListenSocket(currentInputBufferView);
+            RCLCPP_ERROR(node->get_logger(), "Could not open socket!");
+            exit(1);
         }
+
+        std::thread spinThread([&]()
+                               {
+                                   rclcpp::spin(node);
+                               });
+        ListenSocket(currentInputBufferView);
+
+        spinThread.join();
     }
 
     template <typename Msg>
     void SocketManager::SendMsg(const Msg& msg)
     {
-        // RCLCPP_INFO(get_logger(), "Got message!");
-
         MinimalSocket::BufferView serializedMsgBV;
         serializedMsgBV.buffer = outputBuffer.data();
         serializedMsgBV.buffer_size = outputBuffer.size();
 
-        serializedMsgBV = Serialize(*msg, serializedMsgBV);
+        serializedMsgBV = Serialize(msg, serializedMsgBV);
 
         MinimalSocket::BufferView packetsBV;
         packetsBV.buffer = serializedMsgBV.buffer + serializedMsgBV.buffer_size;
@@ -76,7 +84,7 @@ namespace SocketTransfer
         {
             if (!rclcpp::ok())
                 exit(-1);
-            // RCLCPP_INFO(get_logger(), "Sending packet message %d: %d/%d, %ld bytes",
+            // RCLCPP_INFO(node->get_logger(), "Sending packet message %d: %d/%d, %ld bytes",
             //             packet.header.messageID,
             //             packet.header.packetID,
             //             packet.header.numPackets - 1,
@@ -90,37 +98,39 @@ namespace SocketTransfer
 
     inline void SocketManager::ListenSocket(MinimalSocket::BufferView& currentInputBufferView)
     {
-        size_t received_bytes = Receive(currentInputBufferView, MinimalSocket::Timeout(std::chrono::seconds(0)));
-        if (!received_bytes)
-            return;
-
-        Packet packet = ReadPacketAndAdvance(currentInputBufferView, received_bytes);
-        // RCLCPP_INFO(get_logger(), "Received packet! message %d: %d/%d, %ld bytes",
-        //             packet.header.messageID,
-        //             packet.header.packetID,
-        //             packet.header.numPackets - 1,
-        //             receivedMessage->received_bytes);
-
-        if (!currentReceivedMessage)
-            currentReceivedMessage.emplace();
-        else if (currentReceivedMessage->messageID() != packet.header.messageID)
+        while (rclcpp::ok())
         {
-            RCLCPP_WARN(node->get_logger(), "Discarding message %d, we received a packet for message %d", currentReceivedMessage->messageID(), packet.header.messageID);
-            currentInputBufferView = {.buffer = inputBuffer.data(), .buffer_size = bufferSize};
-            RelocatePacket(packet, currentInputBufferView); // this new packet should now be moved to the beginning of the buffer, to avoid writing over it
-            currentReceivedMessage.emplace();
-        }
+            size_t received_bytes = Receive(currentInputBufferView);
+            if (!received_bytes)
+                return;
 
-        currentReceivedMessage->packets.push_back(packet);
+            Packet packet = ReadPacketAndAdvance(currentInputBufferView, received_bytes);
+            // RCLCPP_INFO(node->get_logger(), "Received packet! message %d: %d/%d, %ld bytes",
+            //             packet.header.messageID,
+            //             packet.header.packetID,
+            //             packet.header.numPackets - 1,
+            //             received_bytes);
 
-        if (currentReceivedMessage->isComplete())
-        {
-            MinimalSocket::BufferView rawMsgView = ExtractData(currentReceivedMessage->packets, currentInputBufferView);
-            OnMessageCompleted(rawMsgView);
-            currentInputBufferView = {.buffer = inputBuffer.data(), .buffer_size = bufferSize};
+            if (!currentReceivedMessage)
+                currentReceivedMessage.emplace();
+            else if (currentReceivedMessage->messageID() != packet.header.messageID)
+            {
+                RCLCPP_WARN(node->get_logger(), "Discarding message %d, we received a packet for message %d", currentReceivedMessage->messageID(), packet.header.messageID);
+                currentInputBufferView = {.buffer = inputBuffer.data(), .buffer_size = bufferSize};
+                RelocatePacket(packet, currentInputBufferView); // this new packet should now be moved to the beginning of the buffer, to avoid writing over it
+                currentReceivedMessage.emplace();
+            }
 
-            currentReceivedMessage = std::nullopt;
-            RCLCPP_INFO(node->get_logger(), "Message published!");
+            currentReceivedMessage->packets.push_back(packet);
+
+            if (currentReceivedMessage->isComplete())
+            {
+                MinimalSocket::BufferView rawMsgView = ExtractData(currentReceivedMessage->packets, currentInputBufferView);
+                OnMessageCompleted(rawMsgView);
+                currentInputBufferView = {.buffer = inputBuffer.data(), .buffer_size = bufferSize};
+
+                currentReceivedMessage = std::nullopt;
+            }
         }
     }
 } // namespace SocketTransfer

@@ -28,7 +28,7 @@ namespace SocketTransfer
         
         std::string topic = node->declare_parameter("topic", "/topic");
         sub = node->create_subscription<Msg>(topic, 1, std::bind(&ClientTopic<Msg>::MsgCallback, this, std::placeholders::_1));
-        RCLCPP_INFO(node->get_logger(), "Listening to topic %s", sub->get_topic_name());
+        RCLCPP_INFO(node->get_logger(), "Listening to topic '%s'", sub->get_topic_name());
 
         std::string protocol = node->declare_parameter<std::string>("protocol", "UDP");
         if (protocol == "UDP")
@@ -46,6 +46,7 @@ namespace SocketTransfer
     template <typename Msg>
     inline void ClientTopic<Msg>::MsgCallback(const typename Msg::SharedPtr msg)
     {
+        RCLCPP_INFO(node->get_logger(), "Sending message");
         client->SendMsg(*msg);
     }
 } // namespace SocketTransfer

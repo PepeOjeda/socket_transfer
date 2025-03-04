@@ -26,11 +26,11 @@ namespace SocketTransfer
     template <typename Msg>
     inline ServerService<Msg>::ServerService()
     {
-        node = std::make_shared<rclcpp::Node>("client");
+        node = std::make_shared<rclcpp::Node>("server");
 
-        std::string topic = node->declare_parameter("topic", "/topic");
+        std::string topic = node->declare_parameter("service", "/topic");
         client = node->create_client<Msg>(topic, 1);
-        RCLCPP_INFO(node->get_logger(), "Publishing to topic %s", client->get_service_name());
+        RCLCPP_INFO(node->get_logger(), "Communicating with service '%s'", client->get_service_name());
 
         std::string protocol = node->declare_parameter<std::string>("protocol", "UDP");
         if (protocol == "UDP")

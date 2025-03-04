@@ -32,9 +32,9 @@ namespace SocketTransfer
     {
         node = std::make_shared<rclcpp::Node>("client");
 
-        std::string topic = node->declare_parameter("topic", "/topic");
+        std::string topic = node->declare_parameter("service", "/topic");
         service = node->create_service<Msg>(topic, std::bind(&ClientServer<Msg>::ServiceCallback, this, std::placeholders::_1, std::placeholders::_2));
-        RCLCPP_INFO(node->get_logger(), "Listening to topic %s", service->get_topic_name());
+        RCLCPP_INFO(node->get_logger(), "Advertising service '%s'", service->get_service_name());
 
         std::string protocol = node->declare_parameter<std::string>("protocol", "UDP");
         if (protocol == "UDP")

@@ -7,9 +7,11 @@ namespace SocketTransfer
 {
     class NodeUDP : public SocketManager
     {
+        using SocketManager::SocketManager;
+
     protected:
         virtual bool OpenSocket() override;
-        virtual size_t Receive(MinimalSocket::BufferView buffer, MinimalSocket::Timeout timeout) override;
+        virtual size_t Receive(MinimalSocket::BufferView buffer) override;
         bool Send(MinimalSocket::BufferView messageView) override;
 
     protected:
@@ -23,13 +25,17 @@ namespace SocketTransfer
 
     inline bool NodeUDP::OpenSocket()
     {
-        MinimalSocket::Port port = node->template declare_parameter<MinimalSocket::Port>("port", 15768);
+        MinimalSocket::Port port = node->declare_parameter<MinimalSocket::Port>("port", MinimalSocket::ANY_PORT);
         socket.emplace(port);
-        socket->setBufferSize(10e5);
+        
+        MinimalSocket::Port serverPort = node->declare_parameter<MinimalSocket::Port>("serverPort", 15768);
+        std::string serverIP = node->declare_parameter<std::string>("serverIP", "127.0.0.1");
+        otherNodeAddress = {serverIP, serverPort};
 
         if (socket->open())
         {
-            RCLCPP_INFO(node->get_logger(), "Listening on port %d", port);
+            RCLCPP_INFO(node->get_logger(), "Listening on port %d", socket->getPortToBind());
+            socket->setBufferSize(10e6);
             return true;
         }
         else
@@ -37,15 +43,11 @@ namespace SocketTransfer
             RCLCPP_ERROR(node->get_logger(), "Could not open socket on port %d", port);
             return false;
         }
-
-        MinimalSocket::Port serverPort = node->template declare_parameter<MinimalSocket::Port>("serverPort", 15768);
-        std::string serverIP = node->template declare_parameter<std::string>("serverIP", "127.0.0.1");
-        otherNodeAddress = {serverIP, serverPort};
     }
 
-    inline size_t NodeUDP::Receive(MinimalSocket::BufferView buffer, MinimalSocket::Timeout timeout)
+    inline size_t NodeUDP::Receive(MinimalSocket::BufferView buffer)
     {
-        auto received = socket->receive(buffer, timeout);
+        auto received = socket->receive(buffer);
         if (received)
         {
             if (!Equal(*otherNodeAddress, received->sender))
