@@ -1,6 +1,6 @@
 #pragma once
-#include "MinimalSocket/core/Definitions.h"
-#include "packet.hpp"
+#include <MinimalSocket/core/Definitions.h>
+#include <socket_transfer/internals/packet.hpp>
 #include <cassert>
 #include <cmath>
 #include <string.h>
@@ -78,23 +78,27 @@ namespace SocketTransfer
                 printf("final package");
             char* packetStartPtr = destination.buffer + writer.currentOffset();
 
-            // write packet
-            //-----------------------------------
-            PacketHeader packetHeader{.messageID = messageID, .packetID = packetID, .numPackets = numPackets};
-            writer.Write(&packetHeader);
-
-            // write as much of the message data as will fit in the current package, and advance the data pointer accordingly
-            char* currentBufferPtr = destination.buffer + writer.currentOffset();
+            // write as much of the message data as will fit in the current package
+            size_t remainingBytesInPacket = packetSize - sizeof(PacketHeader);
             size_t remainingBytesMsgData = dataEndPtr - dataCurrentPtr;
-            size_t remainingBytesInPacket = packetSize - (currentBufferPtr - packetStartPtr);
 
             size_t writeSize = std::min(remainingBytesMsgData, remainingBytesInPacket);
+
+            // write packet
+            //-----------------------------------
+            PacketHeader packetHeader{
+                .packetSize = (uint16_t)(writeSize + sizeof(packetHeader)),
+                .messageID = messageID,
+                .packetID = packetID,
+                .numPackets = numPackets};
+            writer.Write(&packetHeader);
+
             writer.Write(dataCurrentPtr, writeSize);
             dataCurrentPtr += writeSize;
 
             // add the bufferview for this packet to the vector
             //-----------------------------------
-            currentBufferPtr = destination.buffer + writer.currentOffset();
+            char* currentBufferPtr = destination.buffer + writer.currentOffset();
             MinimalSocket::BufferView packetBufView{packetStartPtr, (size_t)(currentBufferPtr - packetStartPtr)};
             packetViews.push_back(Packet{packetHeader, packetBufView});
         }

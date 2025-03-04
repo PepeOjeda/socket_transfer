@@ -16,6 +16,10 @@ namespace MinimalSocket
 {
     class ReceiverWithTimeout : public virtual Socket
     {
+    public:
+        size_t peek(BufferView message,
+                    const Timeout& timeout = NULL_TIMEOUT);
+
     protected:
         void updateTimeout_(const Timeout& timeout);
 

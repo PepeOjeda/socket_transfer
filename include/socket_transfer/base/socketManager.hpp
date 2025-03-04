@@ -19,6 +19,7 @@ namespace SocketTransfer
     protected:
         virtual bool OpenSocket() = 0;
         virtual size_t Receive(MinimalSocket::BufferView buffer) = 0;
+        virtual size_t ReceivePeek(MinimalSocket::BufferView buffer) = 0;
         virtual bool Send(MinimalSocket::BufferView messageView) = 0;
 
     private:
@@ -43,7 +44,7 @@ namespace SocketTransfer
     {
         inputBuffer.resize(bufferSize);
         outputBuffer.resize(bufferSize);
-        currentInputBufferView = {inputBuffer.data(), inputBuffer.size()};
+        currentInputBufferView = {inputBuffer.data(), packetSize};
     }
 
     inline void SocketManager::Run()
@@ -100,9 +101,27 @@ namespace SocketTransfer
     {
         while (rclcpp::ok())
         {
+            // read from the message itself the size of the packet, to avoid reading past the end of a small packet and into the beginning of the next one
+            currentInputBufferView.buffer_size = sizeof(PacketHeader::packetSize);
+            {
+                size_t received_bytes = ReceivePeek(currentInputBufferView);
+                currentInputBufferView.buffer_size = *(uint16_t*)currentInputBufferView.buffer;
+            }
+
             size_t received_bytes = Receive(currentInputBufferView);
-            if (!received_bytes)
-                return;
+            if (received_bytes < currentInputBufferView.buffer_size)
+            {
+                RCLCPP_WARN(node->get_logger(), "Expected %zu bytes, but only got %zu! Trying to read the remaining bytes...", currentInputBufferView.buffer_size, received_bytes);
+                MinimalSocket::BufferView missingBytesView{currentInputBufferView.buffer + received_bytes, currentInputBufferView.buffer_size - received_bytes};
+                size_t bytesSecondTry = Receive(missingBytesView);
+                if (bytesSecondTry != missingBytesView.buffer_size)
+                {
+                    RCLCPP_WARN(node->get_logger(), "Expected %zu bytes, but only got %zu! Dropping packet entirely.", missingBytesView.buffer_size, bytesSecondTry);
+                    continue;
+                }
+                else
+                    RCLCPP_WARN(node->get_logger(), "OK, read remaining bytes");
+            }
 
             Packet packet = ReadPacketAndAdvance(currentInputBufferView, received_bytes);
             // RCLCPP_INFO(node->get_logger(), "Received packet! message %d: %d/%d, %ld bytes",

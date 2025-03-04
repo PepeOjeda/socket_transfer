@@ -53,6 +53,21 @@ namespace MinimalSocket
         }
     }
 
+    size_t ReceiverWithTimeout::peek(BufferView message,
+                                     const Timeout& timeout)
+    {
+        updateTimeout_(timeout);
+        int recvBytes = ::recv(getHandler().accessId(), message.buffer,
+                               static_cast<int>(message.buffer_size), MSG_PEEK);
+        if (checkResult(recvBytes, SCK_SOCKET_ERROR, "receive failed",
+                        timeout != NULL_TIMEOUT) ||
+            recvBytes > message.buffer_size)
+        {
+            return 0;
+        }
+        return static_cast<std::size_t>(recvBytes);
+    }
+
     std::size_t ReceiverBlocking::receive(BufferView message,
                                           const Timeout& timeout)
     {

@@ -7,6 +7,7 @@ namespace SocketTransfer
 {
     struct PacketHeader
     {
+        uint16_t packetSize;
         uint8_t messageID;
         uint16_t packetID;
         uint16_t numPackets;

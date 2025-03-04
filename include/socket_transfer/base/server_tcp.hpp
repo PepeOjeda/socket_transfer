@@ -1,6 +1,6 @@
 #pragma once
 #include "socket_transfer/base/socketManager.hpp"
-#include "socket_transfer/utils.hpp"
+#include "socket_transfer/internals/utils.hpp"
 #include <MinimalSocket/tcp/TcpServer.h>
 
 namespace SocketTransfer
@@ -12,6 +12,7 @@ namespace SocketTransfer
     protected:
         bool OpenSocket() override;
         size_t Receive(MinimalSocket::BufferView buffer) override;
+        size_t ReceivePeek(MinimalSocket::BufferView buffer) override;
         bool Send(MinimalSocket::BufferView messageView) override;
 
     private:
@@ -25,7 +26,7 @@ namespace SocketTransfer
     {
         MinimalSocket::Port port = this->node->declare_parameter<MinimalSocket::Port>("port", 15768);
         socket = {port, MinimalSocket::AddressFamily::IP_V4};
-        
+
         if (socket.open())
         {
             RCLCPP_INFO(node->get_logger(), "Listening on port %d", port);
@@ -44,6 +45,14 @@ namespace SocketTransfer
         if (!accepted_connection)
             accepted_connection = socket.acceptNewClient();
         return accepted_connection->receive(buffer);
+    }
+
+    inline size_t ServerTCPBase::ReceivePeek(MinimalSocket::BufferView buffer)
+    {
+        if (!accepted_connection)
+            accepted_connection = socket.acceptNewClient();
+        auto received = accepted_connection->peek(buffer);
+        return received;
     }
 
     inline bool ServerTCPBase::Send(MinimalSocket::BufferView messageView)

@@ -1,6 +1,6 @@
 #pragma once
 #include "socketManager.hpp"
-#include "socket_transfer/utils.hpp"
+#include "socket_transfer/internals/utils.hpp"
 #include <MinimalSocket/udp/UdpSocket.h>
 
 namespace SocketTransfer
@@ -12,6 +12,7 @@ namespace SocketTransfer
     protected:
         virtual bool OpenSocket() override;
         virtual size_t Receive(MinimalSocket::BufferView buffer) override;
+        virtual size_t ReceivePeek(MinimalSocket::BufferView buffer) override;
         bool Send(MinimalSocket::BufferView messageView) override;
 
     protected:
@@ -27,7 +28,7 @@ namespace SocketTransfer
     {
         MinimalSocket::Port port = node->declare_parameter<MinimalSocket::Port>("port", MinimalSocket::ANY_PORT);
         socket.emplace(port);
-        
+
         MinimalSocket::Port serverPort = node->declare_parameter<MinimalSocket::Port>("serverPort", 15768);
         std::string serverIP = node->declare_parameter<std::string>("serverIP", "127.0.0.1");
         otherNodeAddress = {serverIP, serverPort};
@@ -58,7 +59,13 @@ namespace SocketTransfer
             return received->received_bytes;
         }
         else
-            return {};
+            return 0;
+    }
+
+    inline size_t NodeUDP::ReceivePeek(MinimalSocket::BufferView buffer)
+    {
+        auto received = socket->peek(buffer);
+        return received;
     }
 
     inline bool NodeUDP::Send(MinimalSocket::BufferView messageView)

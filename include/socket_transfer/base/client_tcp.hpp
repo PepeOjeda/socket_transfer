@@ -1,5 +1,5 @@
 #pragma once
-#include "../utils.hpp"
+#include "../internals/utils.hpp"
 #include "MinimalSocket/tcp/TcpClient.h"
 #include "socket_transfer/base/socketManager.hpp"
 
@@ -16,6 +16,7 @@ namespace SocketTransfer
     protected:
         bool OpenSocket() override;
         size_t Receive(MinimalSocket::BufferView buffer) override;
+        size_t ReceivePeek(MinimalSocket::BufferView buffer) override;
         bool Send(MinimalSocket::BufferView messageView) override;
 
     private:
@@ -31,7 +32,21 @@ namespace SocketTransfer
         MinimalSocket::Address serverAddress{serverIP, serverPort};
         socket.emplace(serverAddress);
 
-        if (socket->open())
+        // tcp client socket can only be opened once the server is ready, so we might need to try a few times
+        while (!socket->wasOpened() && rclcpp::ok())
+        {
+            try
+            {
+                socket->open();
+            }
+            catch (const std::exception& e)
+            {
+                RCLCPP_INFO(node->get_logger(), "Could not connect to server at %s:%d, retrying...", serverIP.c_str(), serverPort);
+                rclcpp::sleep_for(std::chrono::seconds(1));
+            }
+        }
+
+        if (socket->wasOpened())
         {
             RCLCPP_INFO(node->get_logger(), "Connected to server at %s:%d", serverIP.c_str(), serverPort);
             socket->setBufferSize(10e5);
@@ -47,6 +62,12 @@ namespace SocketTransfer
     inline size_t ClientTCPBase::Receive(MinimalSocket::BufferView buffer)
     {
         return socket->receive(buffer);
+    }
+
+    inline size_t ClientTCPBase::ReceivePeek(MinimalSocket::BufferView buffer)
+    {
+        auto received = socket->peek(buffer);
+        return received;
     }
 
     inline bool ClientTCPBase::Send(MinimalSocket::BufferView messageView)
