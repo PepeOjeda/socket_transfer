@@ -65,6 +65,11 @@ namespace SocketTransfer
             return MinimalSocket::BufferView{.buffer = current, .buffer_size = (size_t)(end - current)};
         }
 
+        MinimalSocket::BufferView getUsedBufferView()
+        {
+            return MinimalSocket::BufferView{.buffer = start, .buffer_size = (size_t)(current - start)};
+        }
+
     private:
         char* start;
         char* current;

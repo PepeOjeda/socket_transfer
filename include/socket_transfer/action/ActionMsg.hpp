@@ -30,7 +30,8 @@ namespace SocketTransfer
             writer.Write(&msg.type);
             writer.Write(&msg.uuid);
 
-            return Serializer<typename ActionT::Goal>::Serialize(msg.goal, writer.getRemainingBuffer());
+            MinimalSocket::BufferView payloadBuffer = Serializer<typename ActionT::Goal>::Serialize(msg.goal, writer.getRemainingBuffer());
+            return MinimalSocket::BufferView{.buffer = bufferView.buffer, .buffer_size = writer.currentOffset() + payloadBuffer.buffer_size};
         }
 
         static void Deserialize(GoalMsg<ActionT>& msg, MinimalSocket::BufferView bufferView)
@@ -67,7 +68,8 @@ namespace SocketTransfer
             writer.Write(&msg.feedback);
             writer.Write(&msg.uuid);
 
-            return Serializer<typename ActionT::Goal>::Serialize(msg.goal, writer.getRemainingBuffer());
+            MinimalSocket::BufferView payloadBuffer = Serializer<typename ActionT::Result>::Serialize(msg.result, writer.getRemainingBuffer());
+            return MinimalSocket::BufferView{.buffer = bufferView.buffer, .buffer_size = writer.currentOffset() + payloadBuffer.buffer_size};
         }
 
         static void Deserialize(FeedbackMsg<ActionT>& msg, MinimalSocket::BufferView bufferView)
@@ -76,7 +78,7 @@ namespace SocketTransfer
             reader.Read(&msg.feedback);
             reader.Read(&msg.uuid);
 
-            Serializer<typename ActionT::Goal>::Deserialize(msg.goal, reader.getRemainingBuffer());
+            Serializer<typename ActionT::Result>::Deserialize(msg.result, reader.getRemainingBuffer());
         }
     };
 } // namespace SocketTransfer

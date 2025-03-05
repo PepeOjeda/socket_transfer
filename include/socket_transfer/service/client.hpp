@@ -1,7 +1,7 @@
 #pragma once
+#include "MsgWithHeader.hpp"
 #include "socket_transfer/base/client_tcp.hpp"
 #include "socket_transfer/base/node_udp.hpp"
-#include "MsgWithHeader.hpp"
 
 namespace SocketTransfer
 {
@@ -9,9 +9,9 @@ namespace SocketTransfer
     template <typename Msg>
     class ClientServer
     {
-        using Request = Request<Msg>;
-        using Response = Response<Msg>;
-        
+        using Request = RequestMsg<Msg>;
+        using Response = ResponseMsg<Msg>;
+
     public:
         ClientServer();
         void Run();

@@ -18,7 +18,6 @@ namespace SocketTransfer
         void Run();
 
     private:
-        void ServiceCallback(const std::shared_ptr<rmw_request_id_t> header, const typename Action::Request::SharedPtr request);
         void OnResponse(MinimalSocket::BufferView responseView);
 
         rclcpp_action::GoalResponse handle_goal(const rclcpp_action::GoalUUID& uuid, std::shared_ptr<const typename Action::Goal> goal);
@@ -74,7 +73,7 @@ namespace SocketTransfer
         {
             auto goalHandle = activeGoals.at(response.uuid);
             activeGoals.erase(response.uuid);
-            auto result = std::make_shared<Action::Result>(response.result);
+            auto result = std::make_shared<typename Action::Result>(response.result);
 
             if (response.feedback == FeedbackMsg::Feedback::Canceled)
                 goalHandle->canceled(result);
@@ -99,7 +98,7 @@ namespace SocketTransfer
     inline rclcpp_action::CancelResponse ClientAction<Action>::handle_cancel(const std::shared_ptr<rclcpp_action::ServerGoalHandle<Action>> goal_handle)
     {
         activeGoals.erase(goal_handle->get_goal_id());
-        GoalMsg reqWithID{GoalMsg::MsgType::CancelGoal, goal_handle->get_goal_id()};
+        GoalMsg reqWithID{GoalMsg::MsgType::CancelGoal, goal_handle->get_goal_id(), typename Action::Goal()};
         client->SendMsg(reqWithID);
 
         return rclcpp_action::CancelResponse::ACCEPT;
@@ -110,7 +109,7 @@ namespace SocketTransfer
     {
         GoalMsg reqWithID{GoalMsg::MsgType::SendGoal, goal_handle->get_goal_id(), *goal_handle->get_goal()};
         client->SendMsg(reqWithID);
-        activeGoals.insert(reqWithID.uuid, goal_handle);
+        activeGoals.insert({reqWithID.uuid, goal_handle});
     }
 
 } // namespace SocketTransfer

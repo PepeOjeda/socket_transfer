@@ -56,9 +56,9 @@ namespace SocketTransfer
     inline void ServerAction<Action>::OnActionResult(const typename rclcpp_action::ClientGoalHandle<Action>::WrappedResult& w_result)
     {
         FeedbackMsg msg;
-        msg.uuid = w_result->goal_id;
-        msg.result = w_result->result;
-        msg.feedback = w_result->code == rclcpp_action::ResultCode::SUCCEEDED ? FeedbackMsg::Feedback::Completed : FeedbackMsg::Feedback::Canceled;
+        msg.uuid = w_result.goal_id;
+        msg.result = *w_result.result;
+        msg.feedback = w_result.code == rclcpp_action::ResultCode::SUCCEEDED ? FeedbackMsg::Feedback::Completed : FeedbackMsg::Feedback::Canceled;
 
         activeGoals.erase(msg.uuid);
 
@@ -73,11 +73,11 @@ namespace SocketTransfer
 
         if (request.type == GoalMsg::MsgType::SendGoal)
         {
-            auto goal_options = rclcpp_action::Client<Action>::SendGoalOptions();
+            typename rclcpp_action::Client<Action>::SendGoalOptions goal_options;
             goal_options.result_callback = std::bind(&ServerAction<Action>::OnActionResult, this, std::placeholders::_1);
             goal_options.goal_response_callback = [&](typename rclcpp_action::ClientGoalHandle<Action>::SharedPtr goalHandle)
             {
-                activeGoals.insert(request.uuid, goalHandle);
+                activeGoals.insert({request.uuid, goalHandle});
             };
             client->async_send_goal(request.goal, goal_options);
         }

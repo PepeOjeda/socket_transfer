@@ -30,7 +30,7 @@ install(
 )
 ament_export_include_directories(include)
 ament_export_libraries(MinimalSocket fmt)
-ament_export_dependencies(rclcpp)
+ament_export_dependencies(rclcpp rclcpp_action)
     
 install(TARGETS MinimalSocket
   DESTINATION lib

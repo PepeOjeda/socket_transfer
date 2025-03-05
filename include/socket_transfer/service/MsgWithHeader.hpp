@@ -19,7 +19,8 @@ namespace SocketTransfer
             BufferWriter writer(bufferView);
             writer.Write(&msg.header);
 
-            return Serializer<typename ServiceT::Request>::Serialize(msg.request, writer.getRemainingBuffer());
+            MinimalSocket::BufferView payloadBuffer = Serializer<typename ServiceT::Request>::Serialize(msg.request, writer.getRemainingBuffer());
+            return MinimalSocket::BufferView{.buffer = bufferView.buffer, .buffer_size = writer.currentOffset() + payloadBuffer.buffer_size};
         }
 
         static void Deserialize(RequestMsg<ServiceT>& msg, MinimalSocket::BufferView bufferView)
@@ -46,7 +47,8 @@ namespace SocketTransfer
             BufferWriter writer(bufferView);
             writer.Write(&msg.header);
 
-            return Serializer<typename ServiceT::Response>::Serialize(msg.response, writer.getRemainingBuffer());
+            MinimalSocket::BufferView payloadBuffer = Serializer<typename ServiceT::Response>::Serialize(msg.response, writer.getRemainingBuffer());
+            return MinimalSocket::BufferView{.buffer = bufferView.buffer, .buffer_size = writer.currentOffset() + payloadBuffer.buffer_size};
         }
 
         static void Deserialize(ResponseMsg<ServiceT>& msg, MinimalSocket::BufferView bufferView)

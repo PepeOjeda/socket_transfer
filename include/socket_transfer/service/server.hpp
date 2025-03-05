@@ -9,8 +9,8 @@ namespace SocketTransfer
     template <typename Msg>
     class ServerService
     {
-        using Request = Request<Msg>;
-        using Response = Response<Msg>;
+        using Request = RequestMsg<Msg>;
+        using Response = ResponseMsg<Msg>;
 
     public:
         ServerService();
