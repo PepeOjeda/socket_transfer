@@ -37,6 +37,10 @@ namespace SocketTransfer
             end = start + _size;
         }
 
+        BufferWriter(MinimalSocket::BufferView bufferView)
+            : BufferWriter(bufferView.buffer, bufferView.buffer_size)
+        {}
+
         template <typename T>
         void Write(T* address)
         {
@@ -54,6 +58,11 @@ namespace SocketTransfer
         size_t currentOffset()
         {
             return current - start;
+        }
+
+        MinimalSocket::BufferView getRemainingBuffer()
+        {
+            return MinimalSocket::BufferView{.buffer = current, .buffer_size = (size_t)(end - current)};
         }
 
     private:
@@ -127,6 +136,10 @@ namespace SocketTransfer
             end = start + _size;
         }
 
+        BufferReader(MinimalSocket::BufferView bufferView)
+            : BufferReader(bufferView.buffer, bufferView.buffer_size)
+        {}
+
         template <typename T>
         void Read(T* address)
         {
@@ -144,6 +157,11 @@ namespace SocketTransfer
         size_t currentOffset()
         {
             return current - start;
+        }
+
+        MinimalSocket::BufferView getRemainingBuffer()
+        {
+            return MinimalSocket::BufferView{.buffer = current, .buffer_size = (size_t)(end - current)};
         }
 
     private:

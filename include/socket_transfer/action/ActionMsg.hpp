@@ -22,6 +22,28 @@ namespace SocketTransfer
     };
 
     template <typename ActionT>
+    struct Serializer<GoalMsg<ActionT>>
+    {
+        static MinimalSocket::BufferView Serialize(const GoalMsg<ActionT>& msg, MinimalSocket::BufferView bufferView)
+        {
+            BufferWriter writer(bufferView);
+            writer.Write(&msg.type);
+            writer.Write(&msg.uuid);
+
+            return Serializer<typename ActionT::Goal>::Serialize(msg.goal, writer.getRemainingBuffer());
+        }
+
+        static void Deserialize(GoalMsg<ActionT>& msg, MinimalSocket::BufferView bufferView)
+        {
+            BufferReader reader(bufferView);
+            reader.Read(&msg.type);
+            reader.Read(&msg.uuid);
+
+            Serializer<typename ActionT::Goal>::Deserialize(msg.goal, reader.getRemainingBuffer());
+        }
+    };
+
+    template <typename ActionT>
     struct FeedbackMsg
     {
         enum Feedback : uint8_t
@@ -36,25 +58,25 @@ namespace SocketTransfer
         typename ActionT::Result result;
     };
 
-    template <typename Result>
-    struct Serializer<GoalMsg<Result>>
+    template <typename ActionT>
+    struct Serializer<FeedbackMsg<ActionT>>
     {
-        static MinimalSocket::BufferView Serialize(const GoalMsg<Result>& msg, MinimalSocket::BufferView bufferView)
+        static MinimalSocket::BufferView Serialize(const FeedbackMsg<ActionT>& msg, MinimalSocket::BufferView bufferView)
         {
-            // serialize the common stuff ...
+            BufferWriter writer(bufferView);
+            writer.Write(&msg.feedback);
+            writer.Write(&msg.uuid);
 
-            return Serializer<Result>::Serialize(msg.result, bufferView);
+            return Serializer<typename ActionT::Goal>::Serialize(msg.goal, writer.getRemainingBuffer());
         }
-    };
 
-    template <typename Result>
-    struct Serializer<FeedbackMsg<Result>>
-    {
-        static MinimalSocket::BufferView Serialize(const FeedbackMsg<Result>& msg, MinimalSocket::BufferView bufferView)
+        static void Deserialize(FeedbackMsg<ActionT>& msg, MinimalSocket::BufferView bufferView)
         {
-            // serialize the common stuff ...
+            BufferReader reader(bufferView);
+            reader.Read(&msg.feedback);
+            reader.Read(&msg.uuid);
 
-            return Serializer<Result>::Serialize(msg.result, bufferView);
+            Serializer<typename ActionT::Goal>::Deserialize(msg.goal, reader.getRemainingBuffer());
         }
     };
 } // namespace SocketTransfer
