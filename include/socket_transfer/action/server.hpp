@@ -9,8 +9,8 @@ namespace SocketTransfer
     template <typename Action>
     class ServerAction
     {
-        using GoalMsg = GoalMsg<Action>;
-        using FeedbackMsg = FeedbackMsg<Action>;
+        using GoalMsgT = GoalMsg<Action>;
+        using FeedbackMsgT = FeedbackMsg<Action>;
 
     public:
         ServerAction();
@@ -49,10 +49,10 @@ namespace SocketTransfer
     template <typename Action>
     inline void ServerAction<Action>::OnActionResult(const typename rclcpp_action::ClientGoalHandle<Action>::WrappedResult& w_result)
     {
-        FeedbackMsg msg;
+        FeedbackMsgT msg;
         msg.uuid = w_result.goal_id;
         msg.result = *w_result.result;
-        msg.feedback = w_result.code == rclcpp_action::ResultCode::SUCCEEDED ? FeedbackMsg::Feedback::Completed : FeedbackMsg::Feedback::Canceled;
+        msg.feedback = w_result.code == rclcpp_action::ResultCode::SUCCEEDED ? FeedbackMsgT::Feedback::Completed : FeedbackMsgT::Feedback::Canceled;
 
         activeGoals.erase(msg.uuid);
 
@@ -62,10 +62,10 @@ namespace SocketTransfer
     template <typename Action>
     inline void ServerAction<Action>::OnMessageComplete(MinimalSocket::BufferView bufView)
     {
-        GoalMsg request;
-        Serializer<GoalMsg>::Deserialize(request, bufView);
+        GoalMsgT request;
+        Serializer<GoalMsgT>::Deserialize(request, bufView);
 
-        if (request.type == GoalMsg::MsgType::SendGoal)
+        if (request.type == GoalMsgT::MsgType::SendGoal)
         {
             typename rclcpp_action::Client<Action>::SendGoalOptions goal_options;
             goal_options.result_callback = std::bind(&ServerAction<Action>::OnActionResult, this, std::placeholders::_1);
@@ -75,7 +75,7 @@ namespace SocketTransfer
             };
             client->async_send_goal(request.goal, goal_options);
         }
-        else if (request.type == GoalMsg::MsgType::CancelGoal)
+        else if (request.type == GoalMsgT::MsgType::CancelGoal)
         {
             try
             {
