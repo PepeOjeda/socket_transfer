@@ -8,7 +8,7 @@ namespace SocketTransfer
     class ServerTopic
     {
     public:
-        ServerTopic();
+        ServerTopic(const rclcpp::QoS& publisherQoS = 1);
         void Run();
 
     private:
@@ -18,12 +18,12 @@ namespace SocketTransfer
     };
 
     template <typename Msg>
-    inline ServerTopic<Msg>::ServerTopic()
+    inline ServerTopic<Msg>::ServerTopic(const rclcpp::QoS& publisherQoS)
     {
         node = std::make_shared<rclcpp::Node>("server");
 
         std::string topic = node->declare_parameter("topic", "/topic");
-        pub = node->create_publisher<Msg>(topic, 1);
+        pub = node->create_publisher<Msg>(topic, publisherQoS);
         RCLCPP_INFO(node->get_logger(), "Publishing to topic '%s'", pub->get_topic_name());
 
         CreateSocket(node, socketManager);

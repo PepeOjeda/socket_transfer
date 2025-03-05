@@ -50,7 +50,7 @@ namespace SocketTransfer
     inline void SocketManager::Run()
     {
         if (OpenSocket())
-            RCLCPP_INFO(node->get_logger(), "Ready!");
+            RCLCPP_INFO(node->get_logger(), "Ready for operation!");
         else
         {
             RCLCPP_ERROR(node->get_logger(), "Could not open socket!");

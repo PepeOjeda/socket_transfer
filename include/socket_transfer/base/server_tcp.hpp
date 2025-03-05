@@ -16,6 +16,9 @@ namespace SocketTransfer
         bool Send(MinimalSocket::BufferView messageView) override;
 
     private:
+        void AcceptConnection();
+
+    private:
         MinimalSocket::tcp::TcpServer<true> socket;
         std::optional<MinimalSocket::tcp::TcpConnectionBlocking> accepted_connection;
     };
@@ -31,6 +34,7 @@ namespace SocketTransfer
         {
             RCLCPP_INFO(node->get_logger(), "Listening on port %d", port);
             socket.setBufferSize(10e5);
+            AcceptConnection();
             return true;
         }
         else
@@ -42,24 +46,29 @@ namespace SocketTransfer
 
     inline size_t ServerTCPBase::Receive(MinimalSocket::BufferView buffer)
     {
-        if (!accepted_connection)
-            accepted_connection = socket.acceptNewClient();
         return accepted_connection->receive(buffer);
     }
 
     inline size_t ServerTCPBase::ReceivePeek(MinimalSocket::BufferView buffer)
     {
-        if (!accepted_connection)
-            accepted_connection = socket.acceptNewClient();
         auto received = accepted_connection->peek(buffer);
         return received;
     }
 
     inline bool ServerTCPBase::Send(MinimalSocket::BufferView messageView)
     {
-        if (!accepted_connection)
-            accepted_connection = socket.acceptNewClient();
         return accepted_connection->send(AsConst(messageView));
+    }
+
+    inline void ServerTCPBase::AcceptConnection()
+    {
+        if (!accepted_connection)
+        {
+            accepted_connection = socket.acceptNewClient();
+            RCLCPP_INFO(node->get_logger(), "Accepted connection from %s:%d",
+                        accepted_connection->getRemoteAddress().getHost().c_str(),
+                        accepted_connection->getRemoteAddress().getPort());
+        }
     }
 
 } // namespace SocketTransfer
