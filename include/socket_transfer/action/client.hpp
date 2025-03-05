@@ -9,8 +9,8 @@ namespace SocketTransfer
     template <typename Action>
     class ClientAction
     {
-        using GoalMsg = GoalMsg<Action>;
-        using FeedbackMsg = FeedbackMsg<Action>;
+        using GoalMsgT = GoalMsg<Action>;
+        using FeedbackMsgT = FeedbackMsg<Action>;
 
     public:
         ClientAction();
@@ -60,8 +60,8 @@ namespace SocketTransfer
     template <typename Action>
     void ClientAction<Action>::OnResponse(MinimalSocket::BufferView bufferview)
     {
-        FeedbackMsg response;
-        Serializer<FeedbackMsg>::Deserialize(response, bufferview);
+        FeedbackMsgT response;
+        Serializer<FeedbackMsgT>::Deserialize(response, bufferview);
 
         try
         {
@@ -69,9 +69,9 @@ namespace SocketTransfer
             activeGoals.erase(response.uuid);
             auto result = std::make_shared<typename Action::Result>(response.result);
 
-            if (response.feedback == FeedbackMsg::Feedback::Canceled)
+            if (response.feedback == FeedbackMsgT::Feedback::Canceled)
                 goalHandle->canceled(result);
-            else if (response.feedback == FeedbackMsg::Feedback::Completed)
+            else if (response.feedback == FeedbackMsgT::Feedback::Completed)
                 goalHandle->succeed(result);
             else
                 RCLCPP_ERROR(node->get_logger(), "Invalid response type from server!");
@@ -92,7 +92,7 @@ namespace SocketTransfer
     inline rclcpp_action::CancelResponse ClientAction<Action>::handle_cancel(const std::shared_ptr<rclcpp_action::ServerGoalHandle<Action>> goal_handle)
     {
         activeGoals.erase(goal_handle->get_goal_id());
-        GoalMsg reqWithID{GoalMsg::MsgType::CancelGoal, goal_handle->get_goal_id(), typename Action::Goal()};
+        GoalMsgT reqWithID{GoalMsgT::MsgType::CancelGoal, goal_handle->get_goal_id(), typename Action::Goal()};
         socketManager->SendMsg(reqWithID);
 
         return rclcpp_action::CancelResponse::ACCEPT;
@@ -101,7 +101,7 @@ namespace SocketTransfer
     template <typename Action>
     inline void ClientAction<Action>::handle_accepted(const std::shared_ptr<rclcpp_action::ServerGoalHandle<Action>> goal_handle)
     {
-        GoalMsg reqWithID{GoalMsg::MsgType::SendGoal, goal_handle->get_goal_id(), *goal_handle->get_goal()};
+        GoalMsgT reqWithID{GoalMsgT::MsgType::SendGoal, goal_handle->get_goal_id(), *goal_handle->get_goal()};
         socketManager->SendMsg(reqWithID);
         activeGoals.insert({reqWithID.uuid, goal_handle});
     }
