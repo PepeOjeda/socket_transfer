@@ -118,11 +118,11 @@ namespace SocketTransfer
             }
 
             Packet packet = ReadPacketAndAdvance(currentInputBufferView, packetSize);
-            RCLCPP_INFO(node->get_logger(), "Received packet! message %d: %d/%d, %ld bytes",
-                        packet.header.messageID,
-                        packet.header.packetID,
-                        packet.header.numPackets - 1,
-                        received_bytes);
+            // RCLCPP_INFO(node->get_logger(), "Received packet! message %d: %d/%d, %ld bytes",
+            //             packet.header.messageID,
+            //             packet.header.packetID,
+            //             packet.header.numPackets - 1,
+            //             received_bytes);
 
             if (!currentReceivedMessage)
                 currentReceivedMessage.emplace();
