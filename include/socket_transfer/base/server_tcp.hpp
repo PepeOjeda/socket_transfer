@@ -33,7 +33,7 @@ namespace SocketTransfer
         if (socket.open())
         {
             RCLCPP_INFO(node->get_logger(), "Listening on port %d", port);
-            socket.setBufferSize(10e5);
+            socket.setBufferSize(10e6);
             AcceptConnection();
             return true;
         }

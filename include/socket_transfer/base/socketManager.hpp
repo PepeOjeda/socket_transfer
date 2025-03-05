@@ -107,28 +107,22 @@ namespace SocketTransfer
                 size_t received_bytes = ReceivePeek(currentInputBufferView);
                 currentInputBufferView.buffer_size = *(uint16_t*)currentInputBufferView.buffer;
             }
-
+            
+            size_t packetSize = currentInputBufferView.buffer_size;
             size_t received_bytes = Receive(currentInputBufferView);
-            if (received_bytes < currentInputBufferView.buffer_size)
+            while(received_bytes < packetSize)
             {
                 RCLCPP_WARN(node->get_logger(), "Expected %zu bytes, but only got %zu! Trying to read the remaining bytes...", currentInputBufferView.buffer_size, received_bytes);
                 MinimalSocket::BufferView missingBytesView{currentInputBufferView.buffer + received_bytes, currentInputBufferView.buffer_size - received_bytes};
-                size_t bytesSecondTry = Receive(missingBytesView);
-                if (bytesSecondTry != missingBytesView.buffer_size)
-                {
-                    RCLCPP_WARN(node->get_logger(), "Expected %zu bytes, but only got %zu! Dropping packet entirely.", missingBytesView.buffer_size, bytesSecondTry);
-                    continue;
-                }
-                else
-                    RCLCPP_WARN(node->get_logger(), "OK, read remaining bytes");
+                received_bytes += Receive(missingBytesView);
             }
 
-            Packet packet = ReadPacketAndAdvance(currentInputBufferView, received_bytes);
-            // RCLCPP_INFO(node->get_logger(), "Received packet! message %d: %d/%d, %ld bytes",
-            //             packet.header.messageID,
-            //             packet.header.packetID,
-            //             packet.header.numPackets - 1,
-            //             received_bytes);
+            Packet packet = ReadPacketAndAdvance(currentInputBufferView, packetSize);
+            RCLCPP_INFO(node->get_logger(), "Received packet! message %d: %d/%d, %ld bytes",
+                        packet.header.messageID,
+                        packet.header.packetID,
+                        packet.header.numPackets - 1,
+                        received_bytes);
 
             if (!currentReceivedMessage)
                 currentReceivedMessage.emplace();

@@ -49,7 +49,7 @@ namespace SocketTransfer
         if (socket->wasOpened())
         {
             RCLCPP_INFO(node->get_logger(), "Connected to server at %s:%d", serverIP.c_str(), serverPort);
-            socket->setBufferSize(10e5);
+            socket->setBufferSize(10e6);
             return true;
         }
         else

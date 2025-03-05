@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <vector>
+#include "signal.h"
 
 namespace SocketTransfer
 {
@@ -71,6 +72,7 @@ namespace SocketTransfer
             fprintf(stderr, "Packet IDs in message %d are weird! Look:\n", packets[0].header.messageID);
             for (int j = 0; j < packets.size(); j++)
                 fprintf(stderr, "\t %d\n", packets[j].header.packetID);
+            raise(SIGTRAP);
         }
 
         void printmessageIDError()
@@ -78,6 +80,7 @@ namespace SocketTransfer
             fprintf(stderr, "Message IDs are not all the same! Look:\n");
             for (int j = 0; j < packets.size(); j++)
                 fprintf(stderr, "\t %d\n", packets[j].header.messageID);
+            raise(SIGTRAP);
         }
     };
 } // namespace SocketTransfer
