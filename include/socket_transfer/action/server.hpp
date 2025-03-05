@@ -1,7 +1,6 @@
 #pragma once
 #include "ActionMsg.hpp"
-#include "socket_transfer/base/node_udp.hpp"
-#include "socket_transfer/base/server_tcp.hpp"
+#include "socket_transfer/internals/create_socket.hpp"
 #include <rclcpp_action/rclcpp_action.hpp>
 
 namespace SocketTransfer
@@ -22,7 +21,7 @@ namespace SocketTransfer
         void OnMessageComplete(MinimalSocket::BufferView bufView);
 
     private:
-        std::unique_ptr<SocketManager> server;
+        std::unique_ptr<SocketManager> socketManager;
         rclcpp::Node::SharedPtr node;
         std::shared_ptr<rclcpp_action::Client<Action>> client;
         std::map<rclcpp_action::GoalUUID, const std::shared_ptr<rclcpp_action::ClientGoalHandle<Action>>> activeGoals;
@@ -36,20 +35,15 @@ namespace SocketTransfer
         std::string topic = node->declare_parameter("actionServer", "/topic");
         client = rclcpp_action::create_client<Action>(node, topic);
         RCLCPP_INFO(node->get_logger(), "Communicating with actionServer '%s'", topic.c_str());
+        CreateSocket(node, socketManager);
 
-        std::string protocol = node->declare_parameter<std::string>("protocol", "UDP");
-        if (protocol == "UDP")
-            server = std::make_unique<NodeUDP>(node);
-        else if (protocol == "TCP")
-            server = std::make_unique<ServerTCPBase>(node);
-
-        server->OnMessageCompleted = std::bind(&ServerAction<Action>::OnMessageComplete, this, std::placeholders::_1);
+        socketManager->OnMessageCompleted = std::bind(&ServerAction<Action>::OnMessageComplete, this, std::placeholders::_1);
     }
 
     template <typename Action>
     inline void ServerAction<Action>::Run()
     {
-        server->Run();
+        socketManager->Run();
     }
 
     template <typename Action>
@@ -62,7 +56,7 @@ namespace SocketTransfer
 
         activeGoals.erase(msg.uuid);
 
-        server->SendMsg(msg);
+        socketManager->SendMsg(msg);
     }
 
     template <typename Action>

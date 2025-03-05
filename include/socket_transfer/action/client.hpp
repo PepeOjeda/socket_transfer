@@ -1,7 +1,6 @@
 #pragma once
 #include "ActionMsg.hpp"
-#include "socket_transfer/base/client_tcp.hpp"
-#include "socket_transfer/base/node_udp.hpp"
+#include "socket_transfer/internals/create_socket.hpp"
 #include <rclcpp_action/rclcpp_action.hpp>
 
 namespace SocketTransfer
@@ -25,7 +24,7 @@ namespace SocketTransfer
         void handle_accepted(const std::shared_ptr<rclcpp_action::ServerGoalHandle<Action>> goal_handle);
 
     private:
-        std::unique_ptr<SocketManager> client;
+        std::unique_ptr<SocketManager> socketManager;
         rclcpp::Node::SharedPtr node;
         typename rclcpp_action::Server<Action>::SharedPtr actionServer;
 
@@ -48,19 +47,14 @@ namespace SocketTransfer
 
         RCLCPP_INFO(node->get_logger(), "Advertising action server '%s'", topic.c_str());
 
-        std::string protocol = node->declare_parameter<std::string>("protocol", "UDP");
-        if (protocol == "UDP")
-            client = std::make_unique<NodeUDP>(node);
-        else if (protocol == "TCP")
-            client = std::make_unique<ClientTCPBase>(node);
-
-        client->OnMessageCompleted = std::bind(&ClientAction<Action>::OnResponse, this, std::placeholders::_1);
+        CreateSocket(node, socketManager);
+        socketManager->OnMessageCompleted = std::bind(&ClientAction<Action>::OnResponse, this, std::placeholders::_1);
     }
 
     template <typename Action>
     void ClientAction<Action>::Run()
     {
-        client->Run();
+        socketManager->Run();
     }
 
     template <typename Action>
@@ -99,7 +93,7 @@ namespace SocketTransfer
     {
         activeGoals.erase(goal_handle->get_goal_id());
         GoalMsg reqWithID{GoalMsg::MsgType::CancelGoal, goal_handle->get_goal_id(), typename Action::Goal()};
-        client->SendMsg(reqWithID);
+        socketManager->SendMsg(reqWithID);
 
         return rclcpp_action::CancelResponse::ACCEPT;
     }
@@ -108,7 +102,7 @@ namespace SocketTransfer
     inline void ClientAction<Action>::handle_accepted(const std::shared_ptr<rclcpp_action::ServerGoalHandle<Action>> goal_handle)
     {
         GoalMsg reqWithID{GoalMsg::MsgType::SendGoal, goal_handle->get_goal_id(), *goal_handle->get_goal()};
-        client->SendMsg(reqWithID);
+        socketManager->SendMsg(reqWithID);
         activeGoals.insert({reqWithID.uuid, goal_handle});
     }
 

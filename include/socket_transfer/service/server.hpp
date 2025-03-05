@@ -1,6 +1,5 @@
 #pragma once
-#include "socket_transfer/base/node_udp.hpp"
-#include "socket_transfer/base/server_tcp.hpp"
+#include "socket_transfer/internals/create_socket.hpp"
 #include "socket_transfer/service/MsgWithHeader.hpp"
 
 namespace SocketTransfer
@@ -17,7 +16,7 @@ namespace SocketTransfer
         void Run();
 
     private:
-        std::unique_ptr<SocketManager> server;
+        std::unique_ptr<SocketManager> socketManager;
         rclcpp::Node::SharedPtr node;
         std::shared_ptr<rclcpp::Client<Msg>> client;
     };
@@ -31,13 +30,9 @@ namespace SocketTransfer
         client = node->create_client<Msg>(topic, 1);
         RCLCPP_INFO(node->get_logger(), "Communicating with service '%s'", client->get_service_name());
 
-        std::string protocol = node->declare_parameter<std::string>("protocol", "UDP");
-        if (protocol == "UDP")
-            server = std::make_unique<NodeUDP>(node);
-        else if (protocol == "TCP")
-            server = std::make_unique<ServerTCPBase>(node);
+        CreateSocket(node, socketManager);
 
-        server->OnMessageCompleted = [&](MinimalSocket::BufferView bufView)
+        socketManager->OnMessageCompleted = [&](MinimalSocket::BufferView bufView)
         {
             Request request;
             Serializer<Request>::Deserialize(request, bufView);
@@ -47,7 +42,7 @@ namespace SocketTransfer
             {
                 auto ros_response = result.get();
                 Response response{request.header, ros_response};
-                server->SendMsg(response);
+                socketManager->SendMsg(response);
             }
         };
     }
@@ -55,6 +50,6 @@ namespace SocketTransfer
     template <typename Msg>
     inline void ServerService<Msg>::Run()
     {
-        server->Run();
+        socketManager->Run();
     }
 } // namespace SocketTransfer

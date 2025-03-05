@@ -1,7 +1,6 @@
 #pragma once
 #include "MsgWithHeader.hpp"
-#include "socket_transfer/base/client_tcp.hpp"
-#include "socket_transfer/base/node_udp.hpp"
+#include "socket_transfer/internals/create_socket.hpp"
 
 namespace SocketTransfer
 {
@@ -21,7 +20,7 @@ namespace SocketTransfer
         void OnResponse(MinimalSocket::BufferView responseView);
 
     private:
-        std::unique_ptr<SocketManager> client;
+        std::unique_ptr<SocketManager> socketManager;
         rclcpp::Node::SharedPtr node;
         typename rclcpp::Service<Msg>::SharedPtr service;
     };
@@ -35,26 +34,22 @@ namespace SocketTransfer
         service = node->create_service<Msg>(topic, std::bind(&ClientServer<Msg>::ServiceCallback, this, std::placeholders::_1, std::placeholders::_2));
         RCLCPP_INFO(node->get_logger(), "Advertising service '%s'", service->get_service_name());
 
-        std::string protocol = node->declare_parameter<std::string>("protocol", "UDP");
-        if (protocol == "UDP")
-            client = std::make_unique<NodeUDP>(node);
-        else if (protocol == "TCP")
-            client = std::make_unique<ClientTCPBase>(node);
+        CreateSocket(node, socketManager);
 
-        client->OnMessageCompleted = std::bind(&ClientServer<Msg>::OnResponse, this, std::placeholders::_1);
+        socketManager->OnMessageCompleted = std::bind(&ClientServer<Msg>::OnResponse, this, std::placeholders::_1);
     }
 
     template <typename Msg>
     void ClientServer<Msg>::Run()
     {
-        client->Run();
+        socketManager->Run();
     }
 
     template <typename Msg>
     void ClientServer<Msg>::ServiceCallback(const std::shared_ptr<rmw_request_id_t> header, const typename Msg::Request::SharedPtr request)
     {
         Request reqWithID{header, *request};
-        client->SendMsg(reqWithID);
+        socketManager->SendMsg(reqWithID);
     }
 
     template <typename Msg>

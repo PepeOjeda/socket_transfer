@@ -1,6 +1,5 @@
 #pragma once
-#include "socket_transfer/base/node_udp.hpp"
-#include "socket_transfer/base/server_tcp.hpp"
+#include "socket_transfer/internals/create_socket.hpp"
 
 namespace SocketTransfer
 {
@@ -13,7 +12,7 @@ namespace SocketTransfer
         void Run();
 
     private:
-        std::unique_ptr<SocketManager> server;
+        std::unique_ptr<SocketManager> socketManager;
         rclcpp::Node::SharedPtr node;
         std::shared_ptr<rclcpp::Publisher<Msg>> pub;
     };
@@ -27,13 +26,9 @@ namespace SocketTransfer
         pub = node->create_publisher<Msg>(topic, 1);
         RCLCPP_INFO(node->get_logger(), "Publishing to topic '%s'", pub->get_topic_name());
 
-        std::string protocol = node->declare_parameter<std::string>("protocol", "UDP");
-        if (protocol == "UDP")
-            server = std::make_unique<NodeUDP>(node);
-        else if (protocol == "TCP")
-            server = std::make_unique<ServerTCPBase>(node);
+        CreateSocket(node, socketManager);
 
-        server->OnMessageCompleted = [&](MinimalSocket::BufferView bufView)
+        socketManager->OnMessageCompleted = [&](MinimalSocket::BufferView bufView)
         {
             RCLCPP_INFO(node->get_logger(), "Received message!");
             Msg msg;
@@ -45,6 +40,6 @@ namespace SocketTransfer
     template <typename Msg>
     inline void ServerTopic<Msg>::Run()
     {
-        server->Run();
+        socketManager->Run();
     }
 } // namespace SocketTransfer
