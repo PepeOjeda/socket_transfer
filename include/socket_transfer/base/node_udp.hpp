@@ -20,6 +20,8 @@ namespace SocketTransfer
 
     private:
         void InitializeCommunication();
+        size_t ReceiveWithTimeout(MinimalSocket::BufferView buffer, MinimalSocket::Timeout timeout);
+        void FlushInputBuffer();
 
     private:
         std::optional<MinimalSocket::udp::Udp<true>> socket;
@@ -48,7 +50,12 @@ namespace SocketTransfer
 
     inline size_t NodeUDP::Receive(MinimalSocket::BufferView buffer)
     {
-        auto received = socket->receive(buffer);
+        return ReceiveWithTimeout(buffer, MinimalSocket::NULL_TIMEOUT);
+    }
+
+    inline size_t NodeUDP::ReceiveWithTimeout(MinimalSocket::BufferView buffer, MinimalSocket::Timeout timeout)
+    {
+        auto received = socket->receive(buffer, timeout);
         if (received)
         {
             if (!Equal(*otherNodeAddress, received->sender))
@@ -60,6 +67,13 @@ namespace SocketTransfer
         }
         else
             return 0;
+    }
+
+    inline void NodeUDP::FlushInputBuffer()
+    {
+        char temp[1000];
+        while (ReceiveWithTimeout(MinimalSocket::BufferView{temp, 1000}, std::chrono::milliseconds(1)) != 0)
+            ;
     }
 
     inline size_t NodeUDP::ReceivePeek(MinimalSocket::BufferView buffer)
@@ -88,6 +102,10 @@ namespace SocketTransfer
                 RCLCPP_ERROR(node->get_logger(), "Got weird first message from client! \nExpected:\t 'hi'\nGot\t '%s'", buffer.c_str());
                 exit(1);
             }
+
+            FlushInputBuffer();
+            std::string response("hiok");
+            Send(MinimalSocket::BufferView{response.data(), response.length()});
         }
 
         // otherwise, send a "hi" message to the server address and wait for an ack
@@ -97,15 +115,21 @@ namespace SocketTransfer
             std::string serverIP = node->declare_parameter<std::string>("serverIP", "127.0.0.1");
             otherNodeAddress = {serverIP, serverPort};
 
-            RCLCPP_INFO(node->get_logger(), "Sending hi message to server at %s:%d", serverIP.c_str(), serverPort);
+            RCLCPP_INFO(node->get_logger(), "Sending 'hi' message to server at %s:%d", serverIP.c_str(), serverPort);
+            RCLCPP_INFO(node->get_logger(), "Waiting for server 'hiok'");
 
             std::string hi("hi");
-            Send(MinimalSocket::BufferView{hi.data(), hi.length()});
-            
             std::string responseBuffer;
             responseBuffer.resize(4);
-            Receive(MinimalSocket::BufferView{responseBuffer.data(), responseBuffer.length()});
-            if(responseBuffer != "hiok")
+
+            size_t receivedBytes = 0;
+            do
+            {
+                Send(MinimalSocket::BufferView{hi.data(), hi.length()});
+                receivedBytes = ReceiveWithTimeout(MinimalSocket::BufferView{responseBuffer.data(), responseBuffer.length()}, std::chrono::milliseconds(500));
+            } while (rclcpp::ok() && receivedBytes == 0);
+
+            if (responseBuffer != "hiok")
             {
                 RCLCPP_ERROR(node->get_logger(), "Got weird first message from server! \nExpected:\t 'hiok'\nGot\t '%s'", responseBuffer.c_str());
                 exit(1);
