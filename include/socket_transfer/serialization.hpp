@@ -220,7 +220,6 @@ namespace SocketTransfer
     }
 } // namespace SocketTransfer
 
-
 #include <std_msgs/msg/header.hpp>
 namespace SocketTransfer::SerializationUtils
 {
@@ -250,21 +249,21 @@ namespace SocketTransfer::SerializationUtils
         reader.Read(&header.stamp);
         DeserializeString(reader, header.frame_id);
     }
-    
+
     template <typename T>
     inline void SerializeVector(BufferWriter& writer, const std::vector<T>& vec)
     {
         size_t length = vec.size();
         writer.Write(&length);
-        writer.Write(vec.data(), length);
+        writer.Write(vec.data(), length * sizeof(T));
     }
 
     template <typename T>
     inline void DeserializeVector(BufferReader& reader, std::vector<T>& vec)
     {
-        size_t length = vec.size();
+        size_t length;
         reader.Read(&length);
         vec.resize(length);
-        reader.Read(vec.data(), length);
+        reader.Read(vec.data(), length * sizeof(T));
     }
 } // namespace SocketTransfer::SerializationUtils
