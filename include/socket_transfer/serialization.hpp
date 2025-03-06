@@ -219,3 +219,52 @@ namespace SocketTransfer
         bufferView.buffer_size -= writer.currentOffset();
     }
 } // namespace SocketTransfer
+
+
+#include <std_msgs/msg/header.hpp>
+namespace SocketTransfer::SerializationUtils
+{
+    inline void SerializeString(BufferWriter& writer, const std::string& str)
+    {
+        size_t length = str.length();
+        writer.Write(&length);
+        writer.Write(str.data(), length);
+    }
+
+    inline void DeserializeString(BufferReader& reader, std::string& str)
+    {
+        size_t length = str.length();
+        reader.Read(&length);
+        str.resize(length);
+        reader.Read(str.data(), length);
+    }
+
+    inline void SerializeHeader(BufferWriter& writer, const std_msgs::msg::Header& header)
+    {
+        writer.Write(&header.stamp);
+        SerializeString(writer, header.frame_id);
+    }
+
+    inline void DeserializeHeader(BufferReader& reader, std_msgs::msg::Header& header)
+    {
+        reader.Read(&header.stamp);
+        DeserializeString(reader, header.frame_id);
+    }
+    
+    template <typename T>
+    inline void SerializeVector(BufferWriter& writer, const std::vector<T>& vec)
+    {
+        size_t length = vec.size();
+        writer.Write(&length);
+        writer.Write(vec.data(), length);
+    }
+
+    template <typename T>
+    inline void DeserializeVector(BufferReader& reader, std::vector<T>& vec)
+    {
+        size_t length = vec.size();
+        reader.Read(&length);
+        vec.resize(length);
+        reader.Read(vec.data(), length);
+    }
+} // namespace SocketTransfer::SerializationUtils
