@@ -1,5 +1,6 @@
 #pragma once
 #include "ActionMsg.hpp"
+#include "socket_transfer/action/utils.hpp"
 #include "socket_transfer/internals/create_socket.hpp"
 #include <rclcpp_action/rclcpp_action.hpp>
 
@@ -56,6 +57,8 @@ namespace SocketTransfer
 
         activeGoals.erase(msg.uuid);
 
+        std::string uuidStr = Utils::UUIDasString(msg.uuid);
+        RCLCPP_INFO(node->get_logger(), "Sending result for goal %s", uuidStr.c_str());
         socketManager->SendMsg(msg);
     }
 
@@ -64,6 +67,9 @@ namespace SocketTransfer
     {
         GoalMsgT request;
         Serializer<GoalMsgT>::Deserialize(request, bufView);
+
+        std::string uuidStr = Utils::UUIDasString(request.uuid);
+        RCLCPP_INFO(node->get_logger(), "Received request for goal %s", uuidStr.c_str());
 
         if (request.type == GoalMsgT::MsgType::SendGoal)
         {

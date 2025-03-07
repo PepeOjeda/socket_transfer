@@ -1,5 +1,6 @@
 #pragma once
 #include "ActionMsg.hpp"
+#include "utils.hpp"
 #include "socket_transfer/internals/create_socket.hpp"
 #include <rclcpp_action/rclcpp_action.hpp>
 
@@ -62,7 +63,8 @@ namespace SocketTransfer
     {
         FeedbackMsgT response;
         Serializer<FeedbackMsgT>::Deserialize(response, bufferview);
-
+        std::string uuidStr = Utils::UUIDasString(response.uuid);
+        RCLCPP_INFO(node->get_logger(), "Received response for goal %s", uuidStr.c_str());
         try
         {
             auto goalHandle = activeGoals.at(response.uuid);
@@ -95,6 +97,8 @@ namespace SocketTransfer
         GoalMsgT reqWithID{GoalMsgT::MsgType::CancelGoal, goal_handle->get_goal_id(), typename Action::Goal()};
         socketManager->SendMsg(reqWithID);
 
+        std::string uuidStr = Utils::UUIDasString(reqWithID.uuid);
+        RCLCPP_INFO(node->get_logger(), "Sending cancel for goal %s", uuidStr.c_str());
         return rclcpp_action::CancelResponse::ACCEPT;
     }
 
@@ -104,6 +108,9 @@ namespace SocketTransfer
         GoalMsgT reqWithID{GoalMsgT::MsgType::SendGoal, goal_handle->get_goal_id(), *goal_handle->get_goal()};
         socketManager->SendMsg(reqWithID);
         activeGoals.insert({reqWithID.uuid, goal_handle});
+
+        std::string uuidStr = Utils::UUIDasString(reqWithID.uuid);
+        RCLCPP_INFO(node->get_logger(), "Sending request for goal %s", uuidStr.c_str());
     }
 
 } // namespace SocketTransfer
