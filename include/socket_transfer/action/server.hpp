@@ -25,7 +25,8 @@ namespace SocketTransfer
         std::unique_ptr<SocketManager> socketManager;
         rclcpp::Node::SharedPtr node;
         std::shared_ptr<rclcpp_action::Client<Action>> client;
-        std::map<rclcpp_action::GoalUUID, const std::shared_ptr<rclcpp_action::ClientGoalHandle<Action>>> activeGoals;
+        std::map<rclcpp_action::GoalUUID, const std::shared_ptr<rclcpp_action::ClientGoalHandle<Action>>> originalUUIDToGoal;
+        std::map<rclcpp_action::GoalUUID, rclcpp_action::GoalUUID> localUUIDToOriginal;
     };
 
     template <typename Action>
@@ -51,11 +52,12 @@ namespace SocketTransfer
     inline void ServerAction<Action>::OnActionResult(const typename rclcpp_action::ClientGoalHandle<Action>::WrappedResult& w_result)
     {
         FeedbackMsgT msg;
-        msg.uuid = w_result.goal_id;
+        msg.uuid = localUUIDToOriginal.at(w_result.goal_id);
         msg.result = *w_result.result;
         msg.feedback = w_result.code == rclcpp_action::ResultCode::SUCCEEDED ? FeedbackMsgT::Feedback::Completed : FeedbackMsgT::Feedback::Canceled;
 
-        activeGoals.erase(msg.uuid);
+        originalUUIDToGoal.erase(msg.uuid);
+        localUUIDToOriginal.erase(w_result.goal_id);
 
         std::string uuidStr = Utils::UUIDasString(msg.uuid);
         RCLCPP_INFO(node->get_logger(), "Sending result for goal %s", uuidStr.c_str());
@@ -77,7 +79,8 @@ namespace SocketTransfer
             goal_options.result_callback = std::bind(&ServerAction<Action>::OnActionResult, this, std::placeholders::_1);
             goal_options.goal_response_callback = [&](typename rclcpp_action::ClientGoalHandle<Action>::SharedPtr goalHandle)
             {
-                activeGoals.insert({request.uuid, goalHandle});
+                originalUUIDToGoal.insert({request.uuid, goalHandle});
+                localUUIDToOriginal.insert({goalHandle->get_goal_id(), request.uuid});
             };
             client->async_send_goal(request.goal, goal_options);
         }
@@ -85,8 +88,8 @@ namespace SocketTransfer
         {
             try
             {
-                client->async_cancel_goal(activeGoals.at(request.uuid));
-                activeGoals.erase(request.uuid);
+                client->async_cancel_goal(originalUUIDToGoal.at(request.uuid));
+                originalUUIDToGoal.erase(request.uuid);
             }
             catch (const std::exception& e)
             {
