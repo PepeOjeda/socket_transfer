@@ -72,7 +72,7 @@ namespace SocketTransfer
             auto result = std::make_shared<typename Action::Result>(response.result);
 
             if (response.feedback == FeedbackMsgT::Feedback::Canceled)
-                goalHandle->canceled(result);
+                goalHandle->abort(result);
             else if (response.feedback == FeedbackMsgT::Feedback::Completed)
                 goalHandle->succeed(result);
             else
