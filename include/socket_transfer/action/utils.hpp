@@ -12,7 +12,7 @@ namespace SocketTransfer::Utils
         for(size_t i =0; i<uuid.size(); i++)
         {
             uint8_t elem = uuid.at(i);
-            sprintf(str.data(), "%03d", elem);
+            sprintf(str.data()+3*i, "%03d", elem);
         }
         return str;
     }
