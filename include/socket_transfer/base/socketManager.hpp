@@ -79,10 +79,6 @@ namespace SocketTransfer
 
     inline void SocketManager::Run()
     {
-        std::thread spinThread([&]()
-                               {
-                                   rclcpp::spin(node);
-                               });
         // if the connection closes, just open the socket again
         while (rclcpp::ok() && running)
         {
@@ -96,7 +92,12 @@ namespace SocketTransfer
                     exit(1);
                 }
 
+                std::thread spinThread([&]()
+                                       {
+                                           rclcpp::spin(node);
+                                       });
                 ListenSocket(currentInputBufferView);
+                spinThread.join();
             }
             catch (const std::exception& e)
             {
@@ -108,7 +109,6 @@ namespace SocketTransfer
             SendBye();
 
         RCLCPP_INFO(node->get_logger(), "Closing socketManager...");
-        spinThread.join();
     }
 
     template <typename Msg>
