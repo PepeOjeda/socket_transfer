@@ -6,6 +6,16 @@
 
 namespace SocketTransfer
 {
+    namespace Internal
+    {
+        inline std::function<void(void)> onSigterm;
+        inline void handleTermination(int signum)
+        {
+            onSigterm();
+            rclcpp::shutdown();
+        }
+    } // namespace Internal
+
     class SocketManager
     {
     public:
@@ -37,6 +47,7 @@ namespace SocketTransfer
 
         uint8_t outputMessageID = 0;
         std::vector<char> outputBuffer;
+        bool running = true;
     };
 
     /* Server implementation */
@@ -47,12 +58,16 @@ namespace SocketTransfer
         inputBuffer.resize(bufferSize);
         outputBuffer.resize(bufferSize);
         currentInputBufferView = {inputBuffer.data(), packetSize};
+
+        // we have to do this a little weird because an instance method cannot be hooked up to a POSIX signal directly
+        signal(SIGTERM, Internal::handleTermination);
+        Internal::onSigterm = std::bind(&SocketManager::SendBye, this);
     }
 
     inline void SocketManager::Run()
     {
         // if the connection closes, just open the socket again
-        while (rclcpp::ok())
+        while (rclcpp::ok() && running)
         {
             try
             {
@@ -185,6 +200,7 @@ namespace SocketTransfer
     {
         try
         {
+            running = false;
             BufferWriter writer(outputBuffer.data(), outputBuffer.size());
             uint16_t length = 3 + sizeof(uint16_t);
             writer.Write(&length);
