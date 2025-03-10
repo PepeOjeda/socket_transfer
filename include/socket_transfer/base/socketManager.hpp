@@ -169,7 +169,7 @@ namespace SocketTransfer
 
     inline bool SocketManager::ByeReceived(MinimalSocket::BufferView bufferV)
     {
-        if (bufferV.buffer_size == 3)
+        if (bufferV.buffer_size == 3 + sizeof(uint16_t))
         {
             std::string received(bufferV.buffer, bufferV.buffer_size);
             if (received == "bye")
@@ -185,8 +185,14 @@ namespace SocketTransfer
     {
         try
         {
-            sprintf(outputBuffer.data(), "bye");
-            Send({outputBuffer.data(), 3});
+            BufferWriter writer(outputBuffer.data(), outputBuffer.size());
+            uint16_t length = 3 + sizeof(uint16_t);
+            writer.Write(&length);
+
+            const char* bye = "bye";
+            writer.Write(bye, length);
+
+            Send({outputBuffer.data(), length});
             RCLCPP_INFO(node->get_logger(), "Sent 'bye'");
         }
         catch (std::exception& e)
