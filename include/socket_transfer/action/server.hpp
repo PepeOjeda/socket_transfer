@@ -34,7 +34,7 @@ namespace SocketTransfer
     {
         node = std::make_shared<rclcpp::Node>("server");
 
-        std::string topic = node->declare_parameter("actionServer", "/topic");
+        std::string topic = Utils::getParam<std::string>(node, "actionServer", "/topic");
         client = rclcpp_action::create_client<Action>(node, topic);
         RCLCPP_INFO(node->get_logger(), "Communicating with actionServer '%s'", topic.c_str());
         CreateSocket(node, socketManager);

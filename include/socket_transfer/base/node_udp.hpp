@@ -31,7 +31,7 @@ namespace SocketTransfer
 
     inline bool NodeUDP::OpenSocket()
     {
-        MinimalSocket::Port port = node->declare_parameter<MinimalSocket::Port>("port", MinimalSocket::ANY_PORT);
+        MinimalSocket::Port port = Utils::getParam<MinimalSocket::Port>(node, "port", MinimalSocket::ANY_PORT);
         socket.emplace(port);
 
         if (socket->open())
@@ -58,7 +58,7 @@ namespace SocketTransfer
         auto received = socket->receive(buffer, timeout);
         if (received)
         {
-            if (!Equal(*otherNodeAddress, received->sender))
+            if (!Utils::Equal(*otherNodeAddress, received->sender))
             {
                 otherNodeAddress = received->sender;
                 RCLCPP_WARN(node->get_logger(), "Changing other node address to %s:%d", otherNodeAddress->getHost().c_str(), otherNodeAddress->getPort());
@@ -84,23 +84,23 @@ namespace SocketTransfer
 
     inline bool NodeUDP::Send(MinimalSocket::BufferView messageView)
     {
-        return socket->sendTo(AsConst(messageView), *otherNodeAddress);
+        return socket->sendTo(Utils::AsConst(messageView), *otherNodeAddress);
     }
 
     inline void NodeUDP::InitializeCommunication()
     {
-        bool isServer = node->declare_parameter<bool>("isServerSocket", false);
+        bool isServer = Utils::getParam<bool>(node, "isServerSocket", false);
 
         // if this node is acting as server, wait until we get a message from the client (so we can know its address)
         if (isServer)
         {
             std::string buffer;
             buffer.resize(2);
-            Receive(MinimalSocket::BufferView{buffer.data(), buffer.length()});
+            size_t received_bytes = Receive(MinimalSocket::BufferView{buffer.data(), buffer.length()});
             if (buffer != "hi")
             {
                 RCLCPP_ERROR(node->get_logger(), "Got weird first message from client! \nExpected:\t 'hi'\nGot\t '%s'", buffer.c_str());
-                exit(1);
+                raise(SIGTRAP);
             }
 
             FlushInputBuffer();
@@ -111,8 +111,8 @@ namespace SocketTransfer
         // otherwise, send a "hi" message to the server address and wait for an ack
         else
         {
-            MinimalSocket::Port serverPort = node->declare_parameter<MinimalSocket::Port>("serverPort", 15768);
-            std::string serverIP = node->declare_parameter<std::string>("serverIP", "127.0.0.1");
+            MinimalSocket::Port serverPort = Utils::getParam<MinimalSocket::Port>(node, "serverPort", 15768);
+            std::string serverIP = Utils::getParam<std::string>(node, "serverIP", "127.0.0.1");
             otherNodeAddress = {serverIP, serverPort};
 
             RCLCPP_INFO(node->get_logger(), "Sending 'hi' message to server at %s:%d", serverIP.c_str(), serverPort);

@@ -1,8 +1,9 @@
 #pragma once
 #include "MinimalSocket/core/Address.h"
 #include "MinimalSocket/core/Definitions.h"
+#include "rclcpp/node.hpp"
 
-namespace SocketTransfer
+namespace SocketTransfer::Utils
 {
     inline MinimalSocket::BufferViewConst AsConst(MinimalSocket::BufferView view)
     {
@@ -12,6 +13,14 @@ namespace SocketTransfer
     inline bool Equal(const MinimalSocket::Address& addr1, const MinimalSocket::Address& addr2)
     {
         return addr1.getHost() == addr2.getHost() && addr1.getPort() == addr2.getPort();
+    }
+
+    template <typename T> T getParam(rclcpp::Node::SharedPtr node, const std::string& name, T defaultValue)
+    {
+        if (node->has_parameter(name))
+            return node->get_parameter_or<T>(name, defaultValue);
+        else
+            return node->declare_parameter<T>(name, defaultValue);
     }
 
 #include <chrono>

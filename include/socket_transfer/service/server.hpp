@@ -26,7 +26,7 @@ namespace SocketTransfer
     {
         node = std::make_shared<rclcpp::Node>("server");
 
-        std::string topic = node->declare_parameter("service", "/topic");
+        std::string topic = Utils::getParam<std::string>(node, "service", "/topic");
         client = node->create_client<Msg>(topic, 1);
         RCLCPP_INFO(node->get_logger(), "Communicating with service '%s'", client->get_service_name());
 

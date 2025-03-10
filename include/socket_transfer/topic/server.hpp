@@ -22,7 +22,7 @@ namespace SocketTransfer
     {
         node = std::make_shared<rclcpp::Node>("server");
 
-        std::string topic = node->declare_parameter("topic", "/topic");
+        std::string topic = Utils::getParam<std::string>(node, "topic", "/topic");
         pub = node->create_publisher<Msg>(topic, publisherQoS);
         RCLCPP_INFO(node->get_logger(), "Publishing to topic '%s'", pub->get_topic_name());
 

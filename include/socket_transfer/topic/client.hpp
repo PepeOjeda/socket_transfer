@@ -25,7 +25,7 @@ namespace SocketTransfer
     {
         node = std::make_shared<rclcpp::Node>("client");
 
-        std::string topic = node->declare_parameter("topic", "/topic");
+        std::string topic = Utils::getParam<std::string>(node, "topic", "/topic");
         sub = node->create_subscription<Msg>(topic, 1, std::bind(&ClientTopic<Msg>::MsgCallback, this, std::placeholders::_1));
         RCLCPP_INFO(node->get_logger(), "Listening to topic '%s'", sub->get_topic_name());
 

@@ -37,7 +37,7 @@ namespace SocketTransfer
     {
         node = std::make_shared<rclcpp::Node>("client");
 
-        std::string topic = node->declare_parameter("actionServer", "/actionServer");
+        std::string topic = Utils::getParam<std::string>(node, "actionServer", "/actionServer");
 
         using namespace std::placeholders;
         // server name ("topic") uses the namespace of the node

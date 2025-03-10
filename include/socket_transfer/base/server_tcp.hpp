@@ -27,7 +27,7 @@ namespace SocketTransfer
 
     inline bool ServerTCPBase::OpenSocket()
     {
-        MinimalSocket::Port port = this->node->declare_parameter<MinimalSocket::Port>("port", 15768);
+        MinimalSocket::Port port = Utils::getParam<MinimalSocket::Port>(node, "port", 15768);
         socket = {port, MinimalSocket::AddressFamily::IP_V4};
 
         if (socket.open())
@@ -57,7 +57,7 @@ namespace SocketTransfer
 
     inline bool ServerTCPBase::Send(MinimalSocket::BufferView messageView)
     {
-        return accepted_connection->send(AsConst(messageView));
+        return accepted_connection->send(Utils::AsConst(messageView));
     }
 
     inline void ServerTCPBase::AcceptConnection()

@@ -24,8 +24,8 @@ namespace SocketTransfer
 
     inline bool ClientTCPBase::OpenSocket()
     {
-        MinimalSocket::Port serverPort = this->node->declare_parameter<MinimalSocket::Port>("serverPort", 15768);
-        std::string serverIP = this->node->declare_parameter<std::string>("serverIP", "127.0.0.1");
+        MinimalSocket::Port serverPort = Utils::getParam<MinimalSocket::Port>(node, "serverPort", 15768);
+        std::string serverIP = Utils::getParam<std::string>(node, "serverIP", "127.0.0.1");
 
         RCLCPP_INFO(node->get_logger(), "Trying to connect to server at %s:%d", serverIP.c_str(), serverPort);
         MinimalSocket::Address serverAddress{serverIP, serverPort};
@@ -71,6 +71,6 @@ namespace SocketTransfer
 
     inline bool ClientTCPBase::Send(MinimalSocket::BufferView messageView)
     {
-        return socket->send(AsConst(messageView));
+        return socket->send(Utils::AsConst(messageView));
     }
 } // namespace SocketTransfer

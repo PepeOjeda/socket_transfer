@@ -6,13 +6,23 @@
 
 namespace SocketTransfer
 {
+    // functions to handle process termination by sending a "bye" message to the other socket
+    // this allows us to stop and restart nodes in one device without having to re-launch in the other device
+    // we have to do this a little weird because an instance method cannot be hooked up to a POSIX signal directly
     namespace Internal
     {
         inline std::function<void(void)> onSigterm;
-        inline void handleTermination(int signum)
+        inline void handleTermination()
         {
+            std::fprintf(stderr, "Sending bye\n");
+
             onSigterm();
             rclcpp::shutdown();
+        }
+
+        inline void handleTermination(int signum)
+        {
+            handleTermination();
         }
     } // namespace Internal
 
@@ -59,13 +69,20 @@ namespace SocketTransfer
         outputBuffer.resize(bufferSize);
         currentInputBufferView = {inputBuffer.data(), packetSize};
 
-        // we have to do this a little weird because an instance method cannot be hooked up to a POSIX signal directly
+        // hook up the termination logic
         signal(SIGTERM, Internal::handleTermination);
+        signal(SIGINT, Internal::handleTermination);
+        signal(SIGHUP, Internal::handleTermination);
+        atexit(Internal::handleTermination);
         Internal::onSigterm = std::bind(&SocketManager::SendBye, this);
     }
 
     inline void SocketManager::Run()
     {
+        std::thread spinThread([&]()
+                               {
+                                   rclcpp::spin(node);
+                               });
         // if the connection closes, just open the socket again
         while (rclcpp::ok() && running)
         {
@@ -79,59 +96,62 @@ namespace SocketTransfer
                     exit(1);
                 }
 
-                std::thread spinThread([&]()
-                                       {
-                                           rclcpp::spin(node);
-                                       });
                 ListenSocket(currentInputBufferView);
-
-                spinThread.join();
             }
             catch (const std::exception& e)
             {
-                RCLCPP_ERROR(node->get_logger(), "Exception caught: %s", e.what());
+                RCLCPP_ERROR(node->get_logger(), "Exception caught in run loop: %s", e.what());
             }
         }
 
-        SendBye();
+        if (running)
+            SendBye();
 
         RCLCPP_INFO(node->get_logger(), "Closing socketManager...");
+        spinThread.join();
     }
 
     template <typename Msg>
     void SocketManager::SendMsg(const Msg& msg)
     {
-        MinimalSocket::BufferView serializedMsgBV;
-        serializedMsgBV.buffer = outputBuffer.data();
-        serializedMsgBV.buffer_size = outputBuffer.size();
-
-        serializedMsgBV = Serializer<Msg>::Serialize(msg, serializedMsgBV);
-
-        MinimalSocket::BufferView packetsBV;
-        packetsBV.buffer = serializedMsgBV.buffer + serializedMsgBV.buffer_size;
-        packetsBV.buffer_size = outputBuffer.size() - serializedMsgBV.buffer_size;
-
-        std::vector<Packet> packets = DividePackets(serializedMsgBV, outputMessageID, packetsBV);
-
-        for (auto packet : packets)
+        try
         {
-            if (!rclcpp::ok())
-                exit(-1);
-            // RCLCPP_INFO(node->get_logger(), "Sending packet message %d: %d/%d, %ld bytes",
-            //             packet.header.messageID,
-            //             packet.header.packetID,
-            //             packet.header.numPackets - 1,
-            //             packet.data.buffer_size);
-            bool success = Send(packet.data);
-            if (!success)
-                RCLCPP_ERROR(node->get_logger(), "Failed to send message!");
+            MinimalSocket::BufferView serializedMsgBV;
+            serializedMsgBV.buffer = outputBuffer.data();
+            serializedMsgBV.buffer_size = outputBuffer.size();
+
+            serializedMsgBV = Serializer<Msg>::Serialize(msg, serializedMsgBV);
+
+            MinimalSocket::BufferView packetsBV;
+            packetsBV.buffer = serializedMsgBV.buffer + serializedMsgBV.buffer_size;
+            packetsBV.buffer_size = outputBuffer.size() - serializedMsgBV.buffer_size;
+
+            std::vector<Packet> packets = DividePackets(serializedMsgBV, outputMessageID, packetsBV);
+
+            for (auto packet : packets)
+            {
+                if (!rclcpp::ok())
+                    exit(-1);
+                // RCLCPP_INFO(node->get_logger(), "Sending packet message %d: %d/%d, %ld bytes",
+                //             packet.header.messageID,
+                //             packet.header.packetID,
+                //             packet.header.numPackets - 1,
+                //             packet.data.buffer_size);
+                bool success = Send(packet.data);
+                if (!success)
+                    RCLCPP_ERROR(node->get_logger(), "Failed to send message!");
+            }
+            outputMessageID++;
         }
-        outputMessageID++;
+        catch (const std::exception& e)
+        {
+            RCLCPP_ERROR(node->get_logger(), "Caught exception sending msg: '%s'", e.what());
+        }
     }
 
     inline void SocketManager::ListenSocket(MinimalSocket::BufferView& currentInputBufferView)
     {
-        while (rclcpp::ok())
+        while (rclcpp::ok() && running)
         {
             // read from the message itself the size of the packet, to avoid reading past the end of a small packet and into the beginning of the next one
             currentInputBufferView.buffer_size = sizeof(PacketHeader::packetSize);
@@ -139,6 +159,9 @@ namespace SocketTransfer
                 size_t received_bytes = ReceivePeek(currentInputBufferView);
                 currentInputBufferView.buffer_size = *(uint16_t*)currentInputBufferView.buffer;
             }
+
+            if (!running)
+                return;
 
             size_t packetSize = currentInputBufferView.buffer_size;
             size_t received_bytes = Receive(currentInputBufferView);
@@ -186,7 +209,15 @@ namespace SocketTransfer
     {
         if (bufferV.buffer_size == 3 + sizeof(uint16_t))
         {
-            std::string received(bufferV.buffer, bufferV.buffer_size);
+            BufferReader reader(bufferV);
+
+            uint16_t length;
+            reader.Read(&length);
+
+            std::string received;
+            received.resize(3);
+            reader.Read(received.data(), 3);
+
             if (received == "bye")
             {
                 RCLCPP_WARN(node->get_logger(), "Received 'bye' msg, resetting socketManager.");
@@ -206,14 +237,14 @@ namespace SocketTransfer
             writer.Write(&length);
 
             const char* bye = "bye";
-            writer.Write(bye, length);
+            writer.Write(bye, 3);
 
-            Send({outputBuffer.data(), length});
-            std::fprintf(stderr, "Sent bye");
+            Send(writer.getUsedBufferView());
+            std::fprintf(stderr, "Sent bye\n");
         }
         catch (std::exception& e)
         {
-            std::fprintf(stderr, "Caught exception while trying to send 'bye': '%s'", e.what());
+            std::fprintf(stderr, "Caught exception while trying to send 'bye': '%s'\n", e.what());
         }
     }
 } // namespace SocketTransfer
