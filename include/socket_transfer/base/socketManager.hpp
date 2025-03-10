@@ -54,6 +54,7 @@ namespace SocketTransfer
         std::vector<char> inputBuffer;
         MinimalSocket::BufferView currentInputBufferView;
         std::optional<Message> currentReceivedMessage;
+        std::optional<rclcpp::executors::SingleThreadedExecutor> exec;
 
         uint8_t outputMessageID = 0;
         std::vector<char> outputBuffer;
@@ -69,6 +70,12 @@ namespace SocketTransfer
         outputBuffer.resize(bufferSize);
         currentInputBufferView = {inputBuffer.data(), packetSize};
 
+        // create executor
+        rclcpp::ExecutorOptions options;
+        options.context = node->get_node_base_interface()->get_context();
+        exec.emplace(options);
+        exec->add_node(node);
+
         // hook up the termination logic
         signal(SIGTERM, Internal::handleTermination);
         signal(SIGINT, Internal::handleTermination);
@@ -79,6 +86,7 @@ namespace SocketTransfer
 
     inline void SocketManager::Run()
     {
+        std::optional<std::thread> spinThread;
         // if the connection closes, just open the socket again
         while (rclcpp::ok() && running)
         {
@@ -92,23 +100,29 @@ namespace SocketTransfer
                     exit(1);
                 }
 
-                std::thread spinThread([&]()
+                if (!spinThread)
+                    spinThread.emplace([&]()
                                        {
-                                           rclcpp::spin(node);
+                                           exec->spin();
                                        });
                 ListenSocket(currentInputBufferView);
-                spinThread.join();
             }
             catch (const std::exception& e)
             {
                 RCLCPP_ERROR(node->get_logger(), "Exception caught in run loop: %s", e.what());
             }
+
+            exec->cancel();
+            spinThread->join();
+            spinThread.reset();
         }
 
         if (running)
             SendBye();
 
         RCLCPP_INFO(node->get_logger(), "Closing socketManager...");
+        if (spinThread)
+            spinThread->join();
     }
 
     template <typename Msg>
