@@ -209,9 +209,11 @@ namespace SocketTransfer
             writer.Write(bye, length);
 
             Send({outputBuffer.data(), length});
-            RCLCPP_INFO(node->get_logger(), "Sent 'bye'");
+            std::fprintf(stderr, "Sent bye");
         }
         catch (std::exception& e)
-        {}
+        {
+            std::fprintf(stderr, "Caught exception while trying to send 'bye': '%s'", e.what());
+        }
     }
 } // namespace SocketTransfer
