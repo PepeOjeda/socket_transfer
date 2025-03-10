@@ -24,6 +24,8 @@ namespace SocketTransfer
 
     private:
         void ListenSocket(MinimalSocket::BufferView& currentInputBufferView);
+        bool ByeReceived(MinimalSocket::BufferView currentInputBufferView);
+        void SendBye();
 
     protected:
         rclcpp::Node::SharedPtr node;
@@ -49,21 +51,36 @@ namespace SocketTransfer
 
     inline void SocketManager::Run()
     {
-        if (OpenSocket())
-            RCLCPP_INFO(node->get_logger(), "Ready for operation!");
-        else
+        // if the connection closes, just open the socket again
+        while (rclcpp::ok())
         {
-            RCLCPP_ERROR(node->get_logger(), "Could not open socket!");
-            exit(1);
+            try
+            {
+                if (OpenSocket())
+                    RCLCPP_INFO(node->get_logger(), "Ready for operation!");
+                else
+                {
+                    RCLCPP_ERROR(node->get_logger(), "Could not open socket!");
+                    exit(1);
+                }
+
+                std::thread spinThread([&]()
+                                       {
+                                           rclcpp::spin(node);
+                                       });
+                ListenSocket(currentInputBufferView);
+
+                spinThread.join();
+            }
+            catch (const std::exception& e)
+            {
+                RCLCPP_ERROR(node->get_logger(), "Exception caught: %s", e.what());
+            }
         }
 
-        std::thread spinThread([&]()
-                               {
-                                   rclcpp::spin(node);
-                               });
-        ListenSocket(currentInputBufferView);
+        SendBye();
 
-        spinThread.join();
+        RCLCPP_INFO(node->get_logger(), "Closing socketManager...");
     }
 
     template <typename Msg>
@@ -107,15 +124,18 @@ namespace SocketTransfer
                 size_t received_bytes = ReceivePeek(currentInputBufferView);
                 currentInputBufferView.buffer_size = *(uint16_t*)currentInputBufferView.buffer;
             }
-            
+
             size_t packetSize = currentInputBufferView.buffer_size;
             size_t received_bytes = Receive(currentInputBufferView);
-            while(received_bytes < packetSize)
+            while (received_bytes < packetSize)
             {
                 RCLCPP_WARN(node->get_logger(), "Expected %zu bytes, but only got %zu! Trying to read the remaining bytes...", currentInputBufferView.buffer_size, received_bytes);
                 MinimalSocket::BufferView missingBytesView{currentInputBufferView.buffer + received_bytes, currentInputBufferView.buffer_size - received_bytes};
                 received_bytes += Receive(missingBytesView);
             }
+
+            if (ByeReceived(currentInputBufferView))
+                return;
 
             Packet packet = ReadPacketAndAdvance(currentInputBufferView, packetSize);
             // RCLCPP_INFO(node->get_logger(), "Received packet! message %d: %d/%d, %ld bytes",
@@ -145,5 +165,31 @@ namespace SocketTransfer
                 currentReceivedMessage = std::nullopt;
             }
         }
+    }
+
+    inline bool SocketManager::ByeReceived(MinimalSocket::BufferView bufferV)
+    {
+        if (bufferV.buffer_size == 3)
+        {
+            std::string received(bufferV.buffer, bufferV.buffer_size);
+            if (received == "bye")
+            {
+                RCLCPP_WARN(node->get_logger(), "Received 'bye' msg, resetting socketManager.");
+                return true;
+            }
+        }
+        return false;
+    }
+
+    inline void SocketManager::SendBye()
+    {
+        try
+        {
+            sprintf(outputBuffer.data(), "bye");
+            Send({outputBuffer.data(), 3});
+            RCLCPP_INFO(node->get_logger(), "Sent 'bye'");
+        }
+        catch (std::exception& e)
+        {}
     }
 } // namespace SocketTransfer

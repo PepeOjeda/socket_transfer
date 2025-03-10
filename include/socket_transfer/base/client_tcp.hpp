@@ -10,7 +10,6 @@ namespace SocketTransfer
         using SocketManager::SocketManager;
 
     public:
-        ClientTCPBase();
         void Run();
 
     protected:
