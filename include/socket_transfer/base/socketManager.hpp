@@ -1,4 +1,5 @@
 #pragma once
+#include "../internals/utils.hpp"
 #include "../serialization.hpp"
 #include <MinimalSocket/tcp/TcpServer.h>
 #include <rclcpp/rclcpp.hpp>
@@ -46,6 +47,7 @@ namespace SocketTransfer
         void ListenSocket(MinimalSocket::BufferView& currentInputBufferView);
         bool ByeReceived(MinimalSocket::BufferView currentInputBufferView);
         void SendBye();
+        void Spin();
 
     protected:
         rclcpp::Node::SharedPtr node;
@@ -87,6 +89,7 @@ namespace SocketTransfer
     inline void SocketManager::Run()
     {
         std::optional<std::thread> spinThread;
+
         // if the connection closes, just open the socket again
         while (rclcpp::ok() && running)
         {
@@ -101,10 +104,8 @@ namespace SocketTransfer
                 }
 
                 if (!spinThread)
-                    spinThread.emplace([&]()
-                                       {
-                                           exec->spin();
-                                       });
+                    spinThread.emplace(std::bind(&SocketManager::Spin, this));
+
                 ListenSocket(currentInputBufferView);
             }
             catch (const std::exception& e)
@@ -128,6 +129,7 @@ namespace SocketTransfer
     template <typename Msg>
     void SocketManager::SendMsg(const Msg& msg)
     {
+        static rclcpp::Rate rate(Utils::getParam(node, "maxFrequency", 0));
         try
         {
             MinimalSocket::BufferView serializedMsgBV;
@@ -161,6 +163,7 @@ namespace SocketTransfer
         {
             RCLCPP_ERROR(node->get_logger(), "Caught exception sending msg: '%s'", e.what());
         }
+        rate.sleep();
     }
 
     inline void SocketManager::ListenSocket(MinimalSocket::BufferView& currentInputBufferView)
@@ -260,5 +263,10 @@ namespace SocketTransfer
         {
             std::fprintf(stderr, "Caught exception while trying to send 'bye': '%s'\n", e.what());
         }
+    }
+
+    inline void SocketManager::Spin()
+    {
+        exec->spin();
     }
 } // namespace SocketTransfer
