@@ -129,7 +129,8 @@ namespace SocketTransfer
     template <typename Msg>
     void SocketManager::SendMsg(const Msg& msg)
     {
-        static rclcpp::Rate rate(Utils::getParam(node, "maxFrequency", 0));
+        static double maxFreq = Utils::getParam(node, "maxFrequency", 0);
+        static rclcpp::Rate rate(maxFreq);
         try
         {
             MinimalSocket::BufferView serializedMsgBV;
@@ -163,7 +164,9 @@ namespace SocketTransfer
         {
             RCLCPP_ERROR(node->get_logger(), "Caught exception sending msg: '%s'", e.what());
         }
-        rate.sleep();
+
+        if (maxFreq > 0)
+            rate.sleep();
     }
 
     inline void SocketManager::ListenSocket(MinimalSocket::BufferView& currentInputBufferView)
