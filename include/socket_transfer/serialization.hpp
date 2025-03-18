@@ -44,13 +44,14 @@ namespace SocketTransfer
         template <typename T>
         void Write(T* address)
         {
-            memcpy(current, address, sizeof(T));
-            current += sizeof(T);
+            Write(address, sizeof(T));
         }
 
         template <typename T>
         void Write(T* address, size_t size)
         {
+            static_assert(std::is_trivially_copyable_v<T>,
+                          "Type is not trivially copyable! If your type contains dynamic memory (strings, vectors, etc) you must explicitly define how to serialize it");
             memcpy(current, address, size);
             current += size;
         }
@@ -148,13 +149,14 @@ namespace SocketTransfer
         template <typename T>
         void Read(T* address)
         {
-            memcpy(address, current, sizeof(T));
-            current += sizeof(T);
+            Read(address, sizeof(T));
         }
 
         template <typename T>
         void Read(T* address, size_t size)
         {
+            static_assert(std::is_trivially_copyable_v<T>,
+                          "Type is not trivially copyable! If your type contains dynamic memory (strings, vectors, etc) you must explicitly define how to serialize it");
             memcpy(address, current, size);
             current += size;
         }
@@ -253,6 +255,8 @@ namespace SocketTransfer::SerializationUtils
     template <typename T>
     inline void SerializeVector(BufferWriter& writer, const std::vector<T>& vec)
     {
+        static_assert(std::is_trivially_copyable_v<T>,
+                      "Type is not trivially copyable! If your type contains dynamic memory (strings, vectors, etc) you must explicitly define how to serialize it");
         size_t length = vec.size();
         writer.Write(&length);
         writer.Write(vec.data(), length * sizeof(T));
@@ -261,6 +265,8 @@ namespace SocketTransfer::SerializationUtils
     template <typename T>
     inline void DeserializeVector(BufferReader& reader, std::vector<T>& vec)
     {
+        static_assert(std::is_trivially_copyable_v<T>,
+                      "Type is not trivially copyable! If your type contains dynamic memory (strings, vectors, etc) you must explicitly define how to serialize it");
         size_t length;
         reader.Read(&length);
         vec.resize(length);
