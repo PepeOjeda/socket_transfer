@@ -43,6 +43,8 @@ namespace SocketTransfer
         virtual size_t ReceivePeek(MinimalSocket::BufferView buffer) = 0;
         virtual bool Send(MinimalSocket::BufferView messageView) = 0;
 
+        void SendControlMsg(Internal::PacketHeader::MsgType type);
+
     private:
         void ListenSocket(MinimalSocket::BufferView& currentInputBufferView);
         bool ByeReceived(MinimalSocket::BufferView currentInputBufferView);
@@ -55,7 +57,7 @@ namespace SocketTransfer
     private:
         std::vector<char> inputBuffer;
         MinimalSocket::BufferView currentInputBufferView;
-        std::optional<Message> currentReceivedMessage;
+        std::optional<Internal::Message> currentReceivedMessage;
         std::optional<rclcpp::executors::SingleThreadedExecutor> exec;
 
         uint8_t outputMessageID = 0;
@@ -143,7 +145,7 @@ namespace SocketTransfer
             packetsBV.buffer = serializedMsgBV.buffer + serializedMsgBV.buffer_size;
             packetsBV.buffer_size = outputBuffer.size() - serializedMsgBV.buffer_size;
 
-            std::vector<Packet> packets = DividePackets(serializedMsgBV, outputMessageID, packetsBV);
+            std::vector<Internal::Packet> packets = DividePackets(serializedMsgBV, outputMessageID, packetsBV);
 
             for (auto packet : packets)
             {
@@ -174,7 +176,7 @@ namespace SocketTransfer
         while (rclcpp::ok() && running)
         {
             // read from the message itself the size of the packet, to avoid reading past the end of a small packet and into the beginning of the next one
-            currentInputBufferView.buffer_size = sizeof(PacketHeader::packetSize);
+            currentInputBufferView.buffer_size = sizeof(Internal::PacketHeader::packetSize);
             {
                 size_t received_bytes = ReceivePeek(currentInputBufferView);
                 currentInputBufferView.buffer_size = *(uint16_t*)currentInputBufferView.buffer;
@@ -185,17 +187,25 @@ namespace SocketTransfer
 
             size_t packetSize = currentInputBufferView.buffer_size;
             size_t received_bytes = Receive(currentInputBufferView);
-            while (received_bytes < packetSize)
+            while (received_bytes < packetSize && rclcpp::ok())
             {
                 RCLCPP_WARN(node->get_logger(), "Expected %zu bytes, but only got %zu! Trying to read the remaining bytes...", currentInputBufferView.buffer_size, received_bytes);
                 MinimalSocket::BufferView missingBytesView{currentInputBufferView.buffer + received_bytes, currentInputBufferView.buffer_size - received_bytes};
                 received_bytes += Receive(missingBytesView);
             }
 
-            if (ByeReceived(currentInputBufferView))
+            Internal::Packet packet = ReadPacketAndAdvance(currentInputBufferView, packetSize);
+            if (packet.header.msgType == Internal::PacketHeader::MsgType::Bye)
+            {
+                RCLCPP_WARN(node->get_logger(), "Received bye message");
                 return;
+            }
+            else if (packet.header.msgType != Internal::PacketHeader::MsgType::Data)
+            {
+                RCLCPP_WARN_STREAM(node->get_logger(), "Ignoring message:" << packet.header);
+                continue;
+            }
 
-            Packet packet = ReadPacketAndAdvance(currentInputBufferView, packetSize);
             // RCLCPP_INFO(node->get_logger(), "Received packet! message %d: %d/%d, %ld bytes",
             //             packet.header.messageID,
             //             packet.header.packetID,
@@ -227,18 +237,11 @@ namespace SocketTransfer
 
     inline bool SocketManager::ByeReceived(MinimalSocket::BufferView bufferV)
     {
-        if (bufferV.buffer_size == 3 + sizeof(uint16_t))
+        if (bufferV.buffer_size == sizeof(Internal::PacketHeader))
         {
-            BufferReader reader(bufferV);
+            Internal::PacketHeader header = Internal::ReadHeader(bufferV);
 
-            uint16_t length;
-            reader.Read(&length);
-
-            std::string received;
-            received.resize(3);
-            reader.Read(received.data(), 3);
-
-            if (received == "bye")
+            if (header.msgType == Internal::PacketHeader::MsgType::Bye)
             {
                 RCLCPP_WARN(node->get_logger(), "Received 'bye' msg, resetting socketManager.");
                 return true;
@@ -252,14 +255,7 @@ namespace SocketTransfer
         try
         {
             running = false;
-            BufferWriter writer(outputBuffer.data(), outputBuffer.size());
-            uint16_t length = 3 + sizeof(uint16_t);
-            writer.Write(&length);
-
-            const char* bye = "bye";
-            writer.Write(bye, 3);
-
-            Send(writer.getUsedBufferView());
+            SendControlMsg(Internal::PacketHeader::MsgType::Bye);
             std::fprintf(stderr, "Sent bye\n");
         }
         catch (std::exception& e)
@@ -271,5 +267,14 @@ namespace SocketTransfer
     inline void SocketManager::Spin()
     {
         exec->spin();
+    }
+
+    inline void SocketManager::SendControlMsg(Internal::PacketHeader::MsgType type)
+    {
+        Internal::PacketHeader msg{};
+        msg.packetSize = sizeof(Internal::PacketHeader);
+        msg.msgType = type;
+
+        Send({.buffer = (char*)&msg, .buffer_size = sizeof(Internal::PacketHeader)});
     }
 } // namespace SocketTransfer

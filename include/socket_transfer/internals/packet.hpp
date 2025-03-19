@@ -1,18 +1,38 @@
+#include "../BufferUtils.hpp"
 #include "MinimalSocket/core/Definitions.h"
+#include "signal.h"
 #include <algorithm>
 #include <cstdint>
+#include <ostream>
 #include <vector>
-#include "signal.h"
 
-namespace SocketTransfer
+namespace SocketTransfer::Internal
 {
     struct PacketHeader
     {
+        enum class MsgType : uint8_t
+        {
+            Hi,
+            HiOK,
+            Bye,
+            Data
+        };
+
         uint16_t packetSize;
+        MsgType msgType;
         uint8_t messageID;
         uint16_t packetID;
         uint16_t numPackets;
     };
+
+    inline PacketHeader ReadHeader(MinimalSocket::BufferView bufView)
+    {
+        BufferReader reader(bufView.buffer, bufView.buffer_size);
+
+        PacketHeader packet;
+        reader.Read(&packet);
+        return packet;
+    }
 
     struct Packet
     {
@@ -83,4 +103,30 @@ namespace SocketTransfer
             raise(SIGTRAP);
         }
     };
-} // namespace SocketTransfer
+
+    inline const char* typeAsStr(PacketHeader::MsgType type)
+    {
+        switch (type)
+        {
+        case PacketHeader::MsgType::Hi:
+            return "HI";
+        case PacketHeader::MsgType::HiOK:
+            return "HIOK";
+        case PacketHeader::MsgType::Bye:
+            return "BYE";
+        case PacketHeader::MsgType::Data:
+            return "Data";
+        }
+        return "";
+    }
+
+    inline std::ostream& operator<<(std::ostream& stream, const PacketHeader& header)
+    {
+        stream << "\n\tsize: " << (uint)header.packetSize;
+        stream << "\n\tmsgType: " << typeAsStr(header.msgType);
+        stream << "\n\tmessageID: " << (uint)header.messageID;
+        stream << "\n\tpacketID: " << (uint)header.packetID;
+        stream << "\n\tnumPackets: " << (uint)header.numPackets << "\n";
+        return stream;
+    }
+} // namespace SocketTransfer::Internal

@@ -3,7 +3,7 @@
 #include <cassert>
 #include <cmath>
 #include <socket_transfer/internals/packet.hpp>
-#include <string.h>
+#include "BufferUtils.hpp"
 
 namespace SocketTransfer
 {
@@ -23,70 +23,22 @@ namespace SocketTransfer
     //      expects the bufferView to have the correct size
     //      the original BufferView is unchanged, the caller is responsible for advancing the pointer if required
 
+
+
     // Serialization
     //-----------------------------------------------------
-
-    class BufferWriter
-    {
-    public:
-        BufferWriter() = delete;
-        BufferWriter(char* _start, size_t _size)
-        {
-            start = _start;
-            current = start;
-            end = start + _size;
-        }
-
-        BufferWriter(MinimalSocket::BufferView bufferView)
-            : BufferWriter(bufferView.buffer, bufferView.buffer_size)
-        {}
-
-        template <typename T>
-        void Write(T* address)
-        {
-            Write(address, sizeof(T));
-        }
-
-        template <typename T>
-        void Write(T* address, size_t size)
-        {
-            static_assert(std::is_trivially_copyable_v<T>,
-                          "Type is not trivially copyable! If your type contains dynamic memory (strings, vectors, etc) you must explicitly define how to serialize it");
-            memcpy(current, address, size);
-            current += size;
-        }
-
-        size_t currentOffset()
-        {
-            return current - start;
-        }
-
-        MinimalSocket::BufferView getRemainingBuffer()
-        {
-            return MinimalSocket::BufferView{.buffer = current, .buffer_size = (size_t)(end - current)};
-        }
-
-        MinimalSocket::BufferView getUsedBufferView()
-        {
-            return MinimalSocket::BufferView{.buffer = start, .buffer_size = (size_t)(current - start)};
-        }
-
-    private:
-        char* start;
-        char* current;
-        char* end;
-    };
+    //-----------------------------------------------------
 
     // the data field of the packets returned by this includes the packet header itself, even if a copy of the header exists separately from it
     // reasoning being, it makes the process of sending the message easier by having a single bufferview include both header and data
-    inline std::vector<Packet>
+    inline std::vector<Internal::Packet>
     DividePackets(MinimalSocket::BufferView source,
                   uint8_t messageID,
                   MinimalSocket::BufferView destination)
     {
         size_t bytesToWrite = source.buffer_size;
 
-        uint16_t numPackets = std::ceil(bytesToWrite / static_cast<double>(packetSize - sizeof(PacketHeader)));
+        uint16_t numPackets = std::ceil(bytesToWrite / static_cast<double>(packetSize - sizeof(Internal::PacketHeader)));
 
         const char* dataCurrentPtr = source.buffer;
         const char* dataEndPtr = source.buffer + source.buffer_size;
@@ -94,7 +46,7 @@ namespace SocketTransfer
         BufferWriter writer(destination.buffer, destination.buffer_size);
 
         // list we will return
-        std::vector<Packet> packetViews;
+        std::vector<Internal::Packet> packetViews;
 
         for (uint16_t packetID = 0; packetID < numPackets; packetID++)
         {
@@ -103,15 +55,16 @@ namespace SocketTransfer
             char* packetStartPtr = destination.buffer + writer.currentOffset();
 
             // write as much of the message data as will fit in the current package
-            size_t remainingBytesInPacket = packetSize - sizeof(PacketHeader);
+            size_t remainingBytesInPacket = packetSize - sizeof(Internal::PacketHeader);
             size_t remainingBytesMsgData = dataEndPtr - dataCurrentPtr;
 
             size_t writeSize = std::min(remainingBytesMsgData, remainingBytesInPacket);
 
             // write packet
             //-----------------------------------
-            PacketHeader packetHeader{
+            Internal::PacketHeader packetHeader{
                 .packetSize = (uint16_t)(writeSize + sizeof(packetHeader)),
+                .msgType = Internal::PacketHeader::MsgType::Data,
                 .messageID = messageID,
                 .packetID = packetID,
                 .numPackets = numPackets};
@@ -124,67 +77,23 @@ namespace SocketTransfer
             //-----------------------------------
             char* currentBufferPtr = destination.buffer + writer.currentOffset();
             MinimalSocket::BufferView packetBufView{packetStartPtr, (size_t)(currentBufferPtr - packetStartPtr)};
-            packetViews.push_back(Packet{packetHeader, packetBufView});
+            packetViews.push_back(Internal::Packet{packetHeader, packetBufView});
         }
         return packetViews;
     }
 
     // Deserialization
+    //-----------------------------------------------------
+    //-----------------------------------------------------
 
-    class BufferReader
-    {
-    public:
-        BufferReader() = delete;
-        BufferReader(char* _start, size_t _size)
-        {
-            start = _start;
-            current = start;
-            end = start + _size;
-        }
-
-        BufferReader(MinimalSocket::BufferView bufferView)
-            : BufferReader(bufferView.buffer, bufferView.buffer_size)
-        {}
-
-        template <typename T>
-        void Read(T* address)
-        {
-            Read(address, sizeof(T));
-        }
-
-        template <typename T>
-        void Read(T* address, size_t size)
-        {
-            static_assert(std::is_trivially_copyable_v<T>,
-                          "Type is not trivially copyable! If your type contains dynamic memory (strings, vectors, etc) you must explicitly define how to serialize it");
-            memcpy(address, current, size);
-            current += size;
-        }
-
-        size_t currentOffset()
-        {
-            return current - start;
-        }
-
-        MinimalSocket::BufferView getRemainingBuffer()
-        {
-            return MinimalSocket::BufferView{.buffer = current, .buffer_size = (size_t)(end - current)};
-        }
-
-    private:
-        char* start;
-        char* current;
-        char* end;
-    };
-
-    inline Packet ReadPacketAndAdvance(MinimalSocket::BufferView& bufferView, size_t dataSize)
+    inline Internal::Packet ReadPacketAndAdvance(MinimalSocket::BufferView& bufferView, size_t dataSize)
     {
         BufferReader reader(bufferView.buffer, bufferView.buffer_size);
 
-        Packet packet;
+        Internal::Packet packet;
         reader.Read(&packet.header);
-        packet.data.buffer = bufferView.buffer + sizeof(PacketHeader);
-        packet.data.buffer_size = dataSize - sizeof(PacketHeader);
+        packet.data.buffer = bufferView.buffer + sizeof(Internal::PacketHeader);
+        packet.data.buffer_size = dataSize - sizeof(Internal::PacketHeader);
 
         // update bufferview
         bufferView.buffer += dataSize;
@@ -195,12 +104,12 @@ namespace SocketTransfer
 
     // moves all of this msg's data into a buffer. Contiguously, in order, and without packet headers
     // the original BufferView is unchanged, the caller is responsible for advancing the pointer if required
-    inline MinimalSocket::BufferView ExtractData(const std::vector<Packet>& packets, MinimalSocket::BufferView destination)
+    inline MinimalSocket::BufferView ExtractData(const std::vector<Internal::Packet>& packets, MinimalSocket::BufferView destination)
     {
         MinimalSocket::BufferView extractedData = destination;
         for (int i = 0; i < packets.size(); i++)
         {
-            const Packet& packet = packets[i];
+            const Internal::Packet& packet = packets[i];
             BufferReader reader(packet.data.buffer, packet.data.buffer_size);
             reader.Read(destination.buffer, packet.data.buffer_size);
             destination.buffer += packet.data.buffer_size;
@@ -210,7 +119,7 @@ namespace SocketTransfer
         return extractedData;
     }
 
-    inline void RelocatePacket(Packet& packet, MinimalSocket::BufferView& bufferView)
+    inline void RelocatePacket(Internal::Packet& packet, MinimalSocket::BufferView& bufferView)
     {
         BufferWriter writer(bufferView.buffer, bufferView.buffer_size);
         writer.Write(packet.data.buffer, packet.data.buffer_size);
