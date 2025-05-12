@@ -1,9 +1,9 @@
 #pragma once
+#include "BufferUtils.hpp"
 #include <MinimalSocket/core/Definitions.h>
 #include <cassert>
 #include <cmath>
 #include <socket_transfer/internals/packet.hpp>
-#include "BufferUtils.hpp"
 
 namespace SocketTransfer
 {
@@ -22,8 +22,6 @@ namespace SocketTransfer
     // static void Deserialize(T& msg, MinimalSocket::BufferView bufferView)
     //      expects the bufferView to have the correct size
     //      the original BufferView is unchanged, the caller is responsible for advancing the pointer if required
-
-
 
     // Serialization
     //-----------------------------------------------------
@@ -180,5 +178,30 @@ namespace SocketTransfer::SerializationUtils
         reader.Read(&length);
         vec.resize(length);
         reader.Read(vec.data(), length * sizeof(T));
+    }
+
+
+    // specialization for vector of strings, which is allowed in ROS interfaces
+    template <>
+    inline void SerializeVector(BufferWriter& writer, const std::vector<std::string>& vec)
+    {
+        size_t length = vec.size();
+        writer.Write(&length);
+        for (const std::string& str : vec)
+        {
+            SerializeString(writer, str);
+        }
+    }
+
+    template <>
+    inline void DeserializeVector(BufferReader& reader, std::vector<std::string>& vec)
+    {
+        size_t length;
+        reader.Read(&length);
+        vec.resize(length);
+        for (std::string& str : vec)
+        {
+            DeserializeString(reader, str);
+        }
     }
 } // namespace SocketTransfer::SerializationUtils

@@ -48,7 +48,7 @@ namespace SocketTransfer
     template <typename Msg>
     void ClientServer<Msg>::ServiceCallback(const std::shared_ptr<rmw_request_id_t> header, const typename Msg::Request::SharedPtr request)
     {
-        Request reqWithID{header, *request};
+        Request reqWithID{*header, *request};
         socketManager->SendMsg(reqWithID);
     }
 

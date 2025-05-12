@@ -27,7 +27,7 @@ namespace SocketTransfer
         node = std::make_shared<rclcpp::Node>("server");
 
         std::string topic = Utils::getParam<std::string>(node, "service", "/topic");
-        client = node->create_client<Msg>(topic, 1);
+        client = node->create_client<Msg>(topic);
         RCLCPP_INFO(node->get_logger(), "Communicating with service '%s'", client->get_service_name());
 
         CreateSocket(node, socketManager);
@@ -36,12 +36,17 @@ namespace SocketTransfer
         {
             Request request;
             Serializer<Request>::Deserialize(request, bufView);
-            auto future = client->async_send_request(request);
+            
+            //we need the actual ros request to be a shared ptr to pass it into async_send_request
+            auto ros_request = std::shared_ptr<typename Msg::Request>();
+            *ros_request = request.request;
+
+            auto future = client->async_send_request(ros_request);
             auto result = rclcpp::spin_until_future_complete(node, future);
             if (result == rclcpp::FutureReturnCode::SUCCESS)
             {
-                auto ros_response = result.get();
-                Response response{request.header, ros_response};
+                auto ros_response = future.get();
+                Response response{request.header, *ros_response};
                 socketManager->SendMsg(response);
             }
         };
